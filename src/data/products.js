@@ -1,0 +1,80 @@
+export const products = [
+    {
+        id: 1,
+        title: "Supernova: Ksatria, Puteri, dan Bintang Jatuh",
+        author: "Dee Lestari",
+        category: "fiksi",
+        categoryDisplay: "Fiksi",
+        year: 2001,
+        price: 125000,
+        description: "Awal mula perjalanan 20 tahun Supernova. Sebuah eksplorasi sains, spiritualitas, dan cinta.",
+        image: "https://placehold.co/300x400/2a2a2a/FFF?text=Supernova",
+        originalPrice: null,
+        stock: 50
+    },
+    {
+        id: 2,
+        title: "Perahu Kertas",
+        author: "Dee Lestari",
+        category: "fiksi",
+        categoryDisplay: "Fiksi",
+        year: 2009,
+        price: 95000,
+        description: "Kisah Kugy dan Keenan. Tentang mimpi, persahabatan, dan cinta yang melaju seperti perahu kertas.",
+        image: "https://placehold.co/300x400/3d3d3d/FFF?text=Perahu+Kertas",
+        originalPrice: 120000,
+        stock: 45
+    },
+    {
+        id: 3,
+        title: "Aroma Karsa",
+        author: "Dee Lestari",
+        category: "fiksi",
+        categoryDisplay: "Fiksi",
+        year: 2018,
+        price: 135000,
+        description: "Obsesi akan aroma mematikan. Petualangan Raras dan Jati Wesi menelusuri puspa karsa yang legendaris.",
+        image: "https://placehold.co/300x400/1a2f1a/FFF?text=Aroma+Karsa",
+        originalPrice: null,
+        stock: 30
+    },
+    {
+        id: 4,
+        title: "Di Balik Tirai Aroma Karsa",
+        author: "Dee Lestari",
+        category: "non-fiksi",
+        categoryDisplay: "Non-Fiksi",
+        year: 2020,
+        price: 89000,
+        description: "Catatan proses kreatif, riset mendalam, dan perjalanan fisik maupun batin dalam melahirkan Aroma Karsa.",
+        image: "https://placehold.co/300x400/5c4033/FFF?text=Di+Balik+Tirai",
+        originalPrice: null,
+        stock: 20
+    },
+    {
+        id: 5,
+        title: "Rapijali 1: Mencari",
+        author: "Dee Lestari",
+        category: "fiksi",
+        categoryDisplay: "Fiksi",
+        year: 2021,
+        price: 110000,
+        description: "Ping, remaja Cijulang dengan bakat musik absolut, harus pindah ke Jakarta dan menemukan irama hidup barunya.",
+        image: "https://placehold.co/300x400/2c3e50/FFF?text=Rapijali",
+        originalPrice: 145000,
+        stock: 60
+    },
+    {
+        id: 6,
+        title: "Rantai Tak Putus",
+        author: "Dee Lestari",
+        category: "non-fiksi",
+        categoryDisplay: "Non-Fiksi",
+        year: 2022,
+        price: 99000,
+        description: "Kisah inspiratif para pelaku UMKM Indonesia. Tentang kegigihan, inovasi, dan semangat untuk terus bertumbuh.",
+        image: "https://placehold.co/300x400/8e44ad/FFF?text=Rantai+Tak+Putus",
+        originalPrice: null,
+        stock: 15
+    }
+];

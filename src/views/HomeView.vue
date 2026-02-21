@@ -1,0 +1,93 @@
+<script setup>
+import { ref, computed } from 'vue';
+import HeroSection from '../components/layout/HeroSection.vue';
+import CategoryFilter from '../components/products/CategoryFilter.vue';
+import ProductGrid from '../components/products/ProductGrid.vue';
+import ProductDetailModal from '../components/products/ProductDetailModal.vue';
+import { products } from '../data/products';
+import { store } from '../store';
+
+const searchQuery = ref('');
+const activeCategory = ref('Semua');
+const selectedProduct = ref(null);
+const isModalOpen = ref(false);
+
+const filteredProducts = computed(() => {
+  return products.filter(product => {
+    const matchesSearch = product.title.toLowerCase().includes(searchQuery.value.toLowerCase()) || 
+                          product.description.toLowerCase().includes(searchQuery.value.toLowerCase());
+    
+    const matchesCategory = activeCategory.value === 'Semua' || 
+                            product.categoryDisplay === activeCategory.value || 
+                            product.categoryDisplay.toLowerCase() === activeCategory.value.toLowerCase();
+                            // In legacy script: category check was against data-category (slug) OR title includes activeChip
+                            // Here we just match strict category or 'Semua'.
+                            // Let's refine based on legacy:
+                            // const lowerChip = activeChip.toLowerCase();
+                            // const matchesChip = activeChip === 'Semua' || category === lowerChip || title.includes(lowerChip);
+                            
+    // Let's stick to simple category match first, improve if needed.
+    // The legacy code used data-category which is slug-like ('fiksi', 'non-fiksi').
+    // My products.js has 'category' (slug) and 'categoryDisplay' (Title Case).
+    // The chips are Title Case ('Fiksi', 'Supernova' - wait Supernova is not a category but a series).
+    // Ah, the chips mixed Categories and Series/Keywords.
+    // Legacy script: const matchesChip = activeChip === 'Semua' || category === lowerChip || title.includes(lowerChip);
+    // So if chip is 'Supernova', it matches if title includes 'supernova'.
+    
+    if (activeCategory.value === 'Semua') return matchesSearch;
+    
+    const lowerCategory = activeCategory.value.toLowerCase();
+    const matchesChip = product.category === lowerCategory || product.title.toLowerCase().includes(lowerCategory);
+    
+    return matchesSearch && matchesChip;
+  });
+});
+
+const handleSearch = (query) => {
+  searchQuery.value = query;
+};
+
+const handleCategoryChange = (category) => {
+  activeCategory.value = category;
+};
+
+const handleUpdateQuantity = (product, change) => {
+  if (change > 0) {
+    store.addToCart(product, change);
+  } else {
+    store.updateQuantity(product.id, change);
+  }
+};
+
+const openProductModal = (product) => {
+  selectedProduct.value = product;
+  isModalOpen.value = true;
+};
+
+const closeProductModal = () => {
+  isModalOpen.value = false;
+  setTimeout(() => {
+    selectedProduct.value = null;
+  }, 300);
+};
+</script>
+
+<template>
+  <main>
+    <HeroSection @search="handleSearch" />
+    <CategoryFilter :activeCategory="activeCategory" @change-category="handleCategoryChange" />
+    <ProductGrid 
+      :products="filteredProducts" 
+      :cartItems="store.cart" 
+      @update-quantity="handleUpdateQuantity" 
+      @view-product="openProductModal"
+    />
+    
+    <ProductDetailModal 
+      v-if="selectedProduct" 
+      :product="selectedProduct" 
+      :isOpen="isModalOpen" 
+      @close="closeProductModal" 
+    />
+  </main>
+</template>
