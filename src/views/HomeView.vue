@@ -26,7 +26,7 @@ const filteredProducts = computed(() => {
                             // const lowerChip = activeChip.toLowerCase();
                             // const matchesChip = activeChip === 'Semua' || category === lowerChip || title.includes(lowerChip);
                             
-    // Let's stick to simple category match first, improve if needed.
+    // Lets stick to simple category match first, improve if needed.
     // The legacy code used data-category which is slug-like ('fiksi', 'non-fiksi').
     // My products.js has 'category' (slug) and 'categoryDisplay' (Title Case).
     // The chips are Title Case ('Fiksi', 'Supernova' - wait Supernova is not a category but a series).
