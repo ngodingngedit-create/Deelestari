@@ -66,8 +66,8 @@ body {
 }
 
 .header-inner {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
     padding: 0 var(--container-padding);
     height: 70px;
@@ -76,12 +76,18 @@ body {
 }
 
 .logo {
+    justify-self: center;
+    text-align: center;
     font-family: var(--font-heading);
     font-size: 2rem;
     font-weight: 600;
     color: var(--text-light);
     text-decoration: none;
     letter-spacing: -0.02em;
+}
+
+.header-actions {
+    justify-self: end;
 }
 
 .menu-toggle,

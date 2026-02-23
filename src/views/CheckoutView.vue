@@ -275,13 +275,13 @@ const placeOrder = () => {
   background: #222;
   border-radius: 12px;
   border: 1px solid #333;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   overflow: hidden;
 }
 
 .section-header {
-  padding: 20px 25px;
-  border-bottom: 1px solid #333;
+  padding: 15px 25px 0 25px;
+  border-bottom: none;
 }
 
 .section-header h2 {
@@ -291,16 +291,18 @@ const placeOrder = () => {
   letter-spacing: 1px;
   font-weight: 700;
   margin: 0;
+  line-height: 1.2;
   color: var(--secondary-accent, #9e4d3d);
 }
 
 .section-body {
-  padding: 25px;
+  padding: 0 25px 15px 25px;
+  margin-top: -10px;
 }
 
 /* Form */
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .form-row {

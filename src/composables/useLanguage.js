@@ -16,6 +16,10 @@ const translations = {
         items: 'item',
         total: 'Total',
         checkout: 'Checkout',
+        beranda: 'Beranda',
+        buku: 'Buku',
+        bio: 'Bio',
+
 
         // Bio Page
         bioHeroTitle: 'Tentang Dee Lestari',
@@ -132,6 +136,10 @@ const translations = {
         items: 'items',
         total: 'Total',
         checkout: 'Checkout',
+        beranda: 'Home',
+        buku: 'Books',
+        bio: 'Bio',
+
 
         // Bio Page
         bioHeroTitle: 'About Dee Lestari',
