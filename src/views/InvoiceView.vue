@@ -1,15 +1,21 @@
 <script setup>
-import { computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { store } from '../store';
 import { useLanguage } from '../composables/useLanguage';
 
 const router = useRouter();
+const route = useRoute();
 const { t } = useLanguage();
 
-const order = computed(() => store.lastOrder);
+const loading = ref(false);
+const error = ref(null);
+const orderData = ref(null);
+
+const order = computed(() => orderData.value);
 
 const formatDate = (date) => {
+  if (!date) return '-';
   return new Date(date).toLocaleDateString('id-ID', {
     weekday: 'long',
     year: 'numeric',
@@ -21,19 +27,122 @@ const formatDate = (date) => {
 };
 
 const formatRupiah = (amount) => {
+  if (!amount) return 'Rp 0';
   return 'Rp ' + amount.toLocaleString('id-ID');
 };
 
-onMounted(() => {
-  if (!store.lastOrder) {
-    router.push('/');
+const mapOrderData = async (data) => {
+    console.log('Mapping Order Data:', data);
+    
+    // Priority fallbacks for items based on provided JSON
+    const rawItems = Array.isArray(data.detail) ? data.detail :
+                    Array.isArray(data.merch_order_details) ? data.merch_order_details :
+                    Array.isArray(data.merch_order_detail) ? data.merch_order_detail :
+                    Array.isArray(data.order_details) ? data.order_details :
+                    Array.isArray(data.items) ? data.items : [];
+                    
+    console.log('Raw Items found:', rawItems);
+
+    const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+    
+    // Fetch all products to match items against (global catalog for invoice matching)
+    let allProducts = [];
+    try {
+        const pResp = await fetch(`${baseUrl}/api/product`);
+        const pResult = await pResp.json();
+        allProducts = pResult.data || [];
+    } catch (e) {
+        console.error('Error fetching product catalog:', e);
+    }
+    
+    const enrichedItems = rawItems.map(detail => {
+        const productId = detail.product_id || detail.product?.id || detail.id;
+        const catProd = allProducts.find(p => p.id == productId || String(p.id) === String(productId));
+        
+        return {
+            id: detail.id,
+            title: catProd?.product_name || detail.product?.product_name || detail.product_name || detail.title || 'Product',
+            quantity: detail.qty || detail.quantity || 1,
+            price: parseFloat(detail.price || 0),
+            image: (catProd?.product_image?.[0]?.image_url) || 
+                   (detail.product?.product_image?.[0]?.image_url) || 
+                   (detail.product_images?.[0]?.image_url) ||
+                   'https://placehold.co/100',
+            note: detail.order_notes || detail.note
+        };
+    });
+
+    return {
+        id: data.invoice_no || data.id,
+        date: data.created_at || data.created_date || data.date,
+        paymentMethod: data.payment_method_custom || data.payment_method || 'Xendit',
+        items: enrichedItems,
+        customer: {
+            fullName: data.address?.nama_penerima || data.address?.name || data.name_pemesan || data.user?.name || 'Customer',
+            phone: data.address?.phone || data.address?.no_telp || data.phone_pemesan || data.user?.phone || '-',
+            email: data.user?.email || data.email_pemesan || '-',
+            address: data.address?.address_detail || data.address?.alamat || '-',
+            storeLocation: data.pickup?.location_name || data.customer?.storeLocation
+        },
+        subtotal: parseFloat(data.total_price || data.subtotal || 0),
+        shipping: parseFloat(data.delivery_price || data.shipping || 0),
+        discount: parseFloat(data.discount || 0),
+        total: parseFloat(data.grandtotal || data.total || 0)
+    };
+};
+
+const fetchOrder = async (id) => {
+    loading.value = true;
+    error.value = null;
+    try {
+        const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+        const response = await fetch(`${baseUrl}/api/order-product-invoice/${id}`);
+        const result = await response.json();
+        console.log('API Invoice Response:', result);
+        
+        if (result.status && result.data) {
+            const rawOrder = result.data.order || result.data || result;
+            orderData.value = await mapOrderData(rawOrder);
+        } else {
+            error.value = result.message || 'Invoice tidak ditemukan';
+        }
+    } catch (err) {
+        console.error('Fetch invoice error:', err);
+        error.value = 'Gagal memuat data invoice';
+    } finally {
+        loading.value = false;
+    }
+};
+
+onMounted(async () => {
+  if (store.lastOrder) {
+    orderData.value = await mapOrderData(store.lastOrder);
+  } else if (route.params.invoiceId) {
+    await fetchOrder(route.params.invoiceId);
+  } else {
+    setTimeout(() => {
+        if (!orderData.value && !loading.value) {
+            router.push('/');
+        }
+    }, 500);
   }
 });
 </script>
 
 <template>
-  <div class="invoice-page" v-if="order">
-    <div class="invoice-container">
+  <div class="invoice-page">
+    <div v-if="loading" class="loading-state">
+        <div class="loader"></div>
+        <p>Memuat invoice...</p>
+    </div>
+
+    <div v-else-if="error" class="error-state">
+        <div class="error-icon">!</div>
+        <h3>{{ error }}</h3>
+        <button class="home-btn" @click="router.push('/')">Kembali ke Beranda</button>
+    </div>
+
+    <div v-else-if="order" class="invoice-container">
       
       <!-- Success Header -->
       <div class="invoice-header">
@@ -329,5 +438,46 @@ onMounted(() => {
   .invoice-container {
     padding: 25px;
   }
+}
+
+.loading-state, .error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 50vh;
+    text-align: center;
+    width: 100%;
+}
+
+.loader {
+    width: 48px;
+    height: 48px;
+    border: 5px solid #333;
+    border-bottom-color: #9e4d3d;
+    border-radius: 50%;
+    display: inline-block;
+    box-sizing: border-box;
+    animation: rotation 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+@keyframes rotation {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.error-icon {
+    width: 64px;
+    height: 64px;
+    background: rgba(255, 77, 79, 0.1);
+    color: #ff4d4f;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 20px;
 }
 </style>

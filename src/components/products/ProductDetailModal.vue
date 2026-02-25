@@ -15,14 +15,19 @@ const emit = defineEmits(['close']);
 const { t } = useLanguage();
 
 const quantity = ref(0);
+const selectedVariantId = ref(null);
 
 // Reset quantity when product changes or modal opens
-watch(() => props.product, () => {
+watch(() => props.product, (newProduct) => {
   quantity.value = 0;
+  selectedVariantId.value = newProduct.variants && newProduct.variants.length > 0 ? newProduct.variants[0].id : null;
 });
 
 watch(() => props.isOpen, (newVal) => {
-  if (newVal) quantity.value = 0;
+  if (newVal) {
+    quantity.value = 0;
+    selectedVariantId.value = props.product.variants && props.product.variants.length > 0 ? props.product.variants[0].id : null;
+  }
 });
 
 const formatRupiah = (amount) => {
@@ -38,7 +43,12 @@ const updateQuantity = (change) => {
 
 const addToCart = () => {
   if (quantity.value > 0) {
-    store.addToCart(props.product, quantity.value);
+    const variant = props.product.variants?.find(v => v.id === selectedVariantId.value);
+    const productWithVariant = {
+        ...props.product,
+        variant_name: variant ? (variant.variant_name || variant.name) : null
+    };
+    store.addToCart(productWithVariant, quantity.value, selectedVariantId.value);
     emit('close');
   }
 };
@@ -67,6 +77,7 @@ const totalPrice = computed(() => {
           <div class="product-header">
              <div class="product-meta">
               <span class="product-category">{{ product.categoryDisplay }}</span>
+              <span v-if="product.isPreorder" class="preorder-badge-inline">Pre-Order</span>
               <span class="product-year">{{ product.year }}</span>
             </div>
             <div class="header-actions">
@@ -99,6 +110,21 @@ const totalPrice = computed(() => {
           <div class="product-description-section">
             <h4 class="section-label">{{ t('description') }}</h4>
             <p class="product-description">{{ product.description }}</p>
+          </div>
+
+          <div v-if="product.variants && product.variants.length > 0" class="product-variants-section">
+            <h4 class="section-label">{{ t('itemVariant') }}</h4>
+            <div class="variants-grid">
+              <button 
+                v-for="variant in product.variants" 
+                :key="variant.id"
+                class="variant-chip"
+                :class="{ active: selectedVariantId === variant.id }"
+                @click="selectedVariantId = variant.id"
+              >
+                {{ variant.variant_name || variant.name }}
+              </button>
+            </div>
           </div>
           
           <div class="product-actions-container">
@@ -238,6 +264,16 @@ const totalPrice = computed(() => {
   font-weight: 600;
 }
 
+.preorder-badge-inline {
+  background: #f1c40f;
+  color: #000;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .header-actions {
   display: flex;
   gap: 10px;
@@ -299,6 +335,39 @@ const totalPrice = computed(() => {
 }
 
 /* Price */
+.product-variants-section {
+  margin-bottom: 30px;
+}
+
+.variants-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.variant-chip {
+  padding: 8px 16px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  color: #ccc;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.variant-chip:hover {
+  border-color: #9e4d3d;
+  color: #fff;
+}
+
+.variant-chip.active {
+  background: rgba(158, 77, 61, 0.1);
+  border-color: #9e4d3d;
+  color: #9e4d3d;
+  font-weight: 600;
+}
+
 .product-price-section {
   display: flex;
   align-items: center;

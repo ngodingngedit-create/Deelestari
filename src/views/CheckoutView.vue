@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { store } from '../store';
 import { useLanguage } from '../composables/useLanguage';
@@ -14,22 +14,49 @@ const formData = ref({
   address: '',
   city: '',
   zip: '',
-  notes: ''
+  notes: '',
+  storeLocation: ''
 });
 
-const isProcessing = ref(false);
 const voucherCode = ref('');
 const paymentMethod = ref('QRIS');
+const allProducts = ref([]);
+
+// Fetch all products to get admin_fee and other details
+onMounted(async () => {
+  try {
+    const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+    const response = await fetch(`${baseUrl}/api/product?creator_id=48`);
+    const result = await response.json();
+    allProducts.value = result.data || [];
+  } catch (err) {
+    console.error('Error fetching products for checkout:', err);
+  }
+});
+
+const enrichedCart = computed(() => {
+  return store.cart.map(item => {
+    const product = allProducts.value.find(p => p.id == item.id);
+    return {
+      ...item,
+      admin_fee: product ? parseFloat(product.admin_fee || 0) : 0
+    };
+  });
+});
 
 const subtotal = computed(() => {
-  return store.cart.reduce((sum, item) => {
+  return enrichedCart.value.reduce((sum, item) => {
     const price = item.originalPrice || item.price;
     return sum + (price * item.quantity);
   }, 0);
 });
 
+const totalAdminFee = computed(() => {
+  return enrichedCart.value.reduce((sum, item) => sum + (item.admin_fee * item.quantity), 0);
+});
+
 const totalDiscount = computed(() => {
-  return store.cart.reduce((sum, item) => {
+  return enrichedCart.value.reduce((sum, item) => {
     if (item.originalPrice && item.originalPrice > item.price) {
       return sum + ((item.originalPrice - item.price) * item.quantity);
     }
@@ -38,49 +65,111 @@ const totalDiscount = computed(() => {
 });
 
 const shippingCost = computed(() => {
-  return subtotal.value > 0 ? 0 : 0; // Free shipping for now, or add logic
+  return subtotal.value > 0 ? 0 : 0; // Free shipping for now
 });
 
 const voucherDiscount = computed(() => {
-  return 0; // Logic for voucher can go here
+  return 0;
 });
 
 const total = computed(() => {
-  return subtotal.value + shippingCost.value - totalDiscount.value - voucherDiscount.value;
+  return subtotal.value + totalAdminFee.value + shippingCost.value - totalDiscount.value - voucherDiscount.value;
 });
 
 const formatRupiah = (amount) => {
+  if (amount === undefined || amount === null) return 'Rp 0';
   return 'Rp ' + amount.toLocaleString('id-ID');
 };
 
-const placeOrder = () => {
+const placeOrder = async () => {
   if (store.cart.length === 0) {
     store.showNotification(t('cartEmpty'), 'info');
     return;
   }
 
-  isProcessing.value = true;
+  store.checkoutLoading = true;
   
-  // Simulate API call
-  setTimeout(() => {
-    // Create Order Data
-    const orderData = {
-      id: Math.random().toString(36).substr(2, 9).toUpperCase(),
-      date: new Date(),
-      customer: { ...formData.value },
-      items: JSON.parse(JSON.stringify(store.cart)), // Deep copy
-      subtotal: subtotal.value,
-      shipping: shippingCost.value,
-      discount: totalDiscount.value + voucherDiscount.value,
-      total: total.value,
-      paymentMethod: paymentMethod.value
+  try {
+    const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+    
+    const payload = {
+      user_id: 6,
+      name_pemesan: formData.value.fullName,
+      email_pemesan: formData.value.email,
+      phone_pemesan: formData.value.phone,
+      creator_id: 6,
+      grandtotal: total.value,
+      product: store.cart.map(item => {
+        const prod = {
+          product_id: item.id,
+          qty: item.quantity,
+          price: item.price,
+          order_notes: item.note || ''
+        };
+        if (item.variant_id) {
+          prod.variant_id = item.variant_id;
+        }
+        return prod;
+      }),
+      payment_method: "xendit",
+      payment_method_id: 4,
+      courier: {
+        main: "JNE",
+        type: "JTR",
+        price: 0
+      },
+      address: {
+        user_id: 12,
+        is_main_address: 1,
+        province_id: "0",
+        city_id: "0",
+        address_detail: formData.value.address,
+        address_name: "Pickup",
+        zipcode: formData.value.zip || "15147",
+        latitude: "",
+        longitude: "",
+        nama_penerima: formData.value.fullName,
+        phone: formData.value.phone,
+        is_active: 1
+      },
+      success_redirect_url: `${window.location.origin}/merch-invoice/{invoice_merch}`,
+      failure_redirect_url: `${window.location.origin}/checkout`,
+      is_microsite: 1,
+      microsite_url: window.location.origin
     };
 
-    store.setLastOrder(orderData);
-    store.clearCart();
-    isProcessing.value = false;
-    router.push('/invoice');
-  }, 1500);
+    const response = await fetch(`${baseUrl}/api/order-product`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+
+    if (result.status && result.data && result.data.order) {
+      // Success
+      store.setLastOrder(result.data.order);
+      store.clearCart();
+      
+      // Redirect to Xendit
+      if (result.data.order.xendit_url) {
+        window.location.href = result.data.order.xendit_url;
+      } else if (result.xendit_invoice) {
+        window.location.href = result.xendit_invoice;
+      } else {
+        router.push('/invoice');
+      }
+    } else {
+      store.showNotification(result.message || 'Failed to place order', 'error');
+    }
+  } catch (err) {
+    console.error('Checkout error:', err);
+    store.showNotification('An error occurred during checkout', 'info');
+  } finally {
+    store.checkoutLoading = false;
+  }
 };
 </script>
 
@@ -147,15 +236,19 @@ const placeOrder = () => {
             <div class="section-body">
               <div class="order-list">
                 <div v-if="store.cart.length === 0" class="empty-msg">{{ t('emptyCart') }}</div>
-                <div v-else v-for="item in store.cart" :key="item.id" class="order-item">
+                <div v-else v-for="item in enrichedCart" :key="item.id + (item.variant_id || '')" class="order-item">
                   <div class="item-visual" :style="{ backgroundImage: `url(${item.image})` }"></div>
                   
                   <div class="item-content">
                     <div class="item-header-row">
                         <div class="item-main-info">
                             <h3 class="item-title">{{ item.title }}</h3>
-                            <div class="item-meta">
-                                <span class="item-variant">{{ t('itemVariant') }}</span>
+                            <div class="item-meta-info">
+                                <span class="info-qty">{{ t('qty') }}: {{ item.quantity }}</span>
+                                <span v-if="item.admin_fee > 0" class="info-fee">Admin Fee: {{ formatRupiah(item.admin_fee) }}</span>
+                            </div>
+                            <div v-if="item.variant_name" class="item-meta">
+                                <span class="item-variant">{{ item.variant_name }}</span>
                             </div>
                         </div>
                         <div class="item-pricing">
@@ -219,6 +312,10 @@ const placeOrder = () => {
             <div class="summary-row">
               <span>{{ t('totalOngkir') }}</span>
               <span>{{ formatRupiah(shippingCost) }}</span>
+            </div>
+            <div class="summary-row" v-if="totalAdminFee > 0">
+              <span>Biaya Layanan (Admin Fee)</span>
+              <span>{{ formatRupiah(totalAdminFee) }}</span>
             </div>
             <div class="summary-row" v-if="totalDiscount > 0">
               <span>{{ t('totalDiskon') }}</span>
@@ -430,6 +527,22 @@ input:focus, textarea:focus {
   padding: 2px 8px;
   border-radius: 4px;
   display: inline-block;
+}
+
+.item-meta-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.info-qty, .info-fee {
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.info-fee {
+  color: var(--secondary-accent, #9e4d3d);
 }
 
 .item-pricing {

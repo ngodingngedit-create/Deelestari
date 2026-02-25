@@ -31,7 +31,11 @@ const discountPercentage = computed(() => {
 <template>
   <article class="card" @click="$emit('view-product', product)">
     <div class="card-image placeholder-image"
-      :style="{ backgroundImage: `url(${product.image})` }"></div>
+      :style="{ backgroundImage: `url(${product.image})` }">
+      <div v-if="product.isPreorder" class="preorder-badge">
+        <span>PRE-ORDER</span>
+      </div>
+    </div>
     <div class="card-content">
       <div class="card-author">Dee Lestari</div>
       <span class="card-category">{{ product.categoryDisplay }}</span>
@@ -68,5 +72,20 @@ const discountPercentage = computed(() => {
 /* Global styles used */
 .card {
   cursor: pointer;
+}
+
+.preorder-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: #f1c40f;
+  color: #000;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba(241, 196, 15, 0.3);
+  z-index: 10;
 }
 </style>

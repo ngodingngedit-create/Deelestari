@@ -27,6 +27,11 @@ const router = createRouter({
             component: () => import('../views/InvoiceView.vue')
         },
         {
+            path: '/merch-invoice/:invoiceId',
+            name: 'merch-invoice',
+            component: () => import('../views/InvoiceView.vue')
+        },
+        {
             path: '/kaizen-writing',
             name: 'kaizen',
             component: () => import('../views/KaizenView.vue')

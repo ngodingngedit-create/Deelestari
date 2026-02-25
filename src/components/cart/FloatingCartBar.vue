@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { useRoute } from 'vue-router';
+import { store } from '../../store';
 import { useLanguage } from '../../composables/useLanguage';
 
 const props = defineProps({
@@ -45,7 +46,7 @@ const toggleDetail = () => {
         <div v-for="item in cartItems" :key="item.id" class="detail-item-row">
           <div class="detail-item-info">
             <h4>{{ item.title }}</h4>
-            <span class="detail-item-variant">{{ t('itemVariant') }}</span>
+            <span v-if="item.variant_name" class="detail-item-variant">{{ item.variant_name }}</span>
           </div>
           <div class="detail-item-actions">
             <div class="detail-qty-control">
@@ -65,12 +66,13 @@ const toggleDetail = () => {
         <span class="floating-total-price">{{ formatRupiah(totalPrice) }}</span>
       </div>
       <div class="floating-cart-actions">
-        <button v-if="route.path !== '/checkout'" class="floating-detail-btn" @click="toggleDetail">
+        <button class="floating-detail-btn" @click="toggleDetail">
           {{ t('detail') }} <span class="detail-badge">{{ totalCount }}</span> 
           <i class="chevron-down" :style="{ transform: isDetailOpen ? 'rotate(-135deg)' : 'rotate(45deg)', marginTop: isDetailOpen ? '5px' : '0' }"></i>
         </button>
-        <button class="floating-checkout-btn" @click="$emit('checkout')">
-          {{ route.path === '/checkout' ? t('payNow') : t('buyNow') }}
+        <button class="floating-checkout-btn" :disabled="store.checkoutLoading" @click="$emit('checkout')">
+          <span v-if="store.checkoutLoading" class="mini-loader"></span>
+          <span v-else>{{ route.path === '/checkout' ? t('payNow') : t('buyNow') }}</span>
         </button>
       </div>
     </div>
@@ -81,5 +83,26 @@ const toggleDetail = () => {
 /* Scoped styles mainly handled by global CSS */
 .floating-cart-bar {
   z-index: 2500; /* Ensure it stays above modal (z-index 2000) */
+}
+
+.mini-loader {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-bottom-color: #fff;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.floating-checkout-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 </style>

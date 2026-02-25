@@ -3,7 +3,8 @@ import { t } from '../composables/useLanguage';
 
 export const store = reactive({
   cart: [],
-  lastOrder: null, // Stores the details of the most recent order for the invoice page,
+  lastOrder: null,
+  checkoutLoading: false,
   notification: {
     show: false,
     message: '',
@@ -23,12 +24,12 @@ export const store = reactive({
     }, 3000);
   },
 
-  addToCart(product, quantity = 1) {
-    const existingItem = this.cart.find(item => item.id === product.id);
+  addToCart(product, quantity = 1, variantId = null) {
+    const existingItem = this.cart.find(item => item.id === product.id && item.variant_id === variantId);
     if (existingItem) {
       existingItem.quantity += quantity;
       if (existingItem.quantity <= 0) {
-        this.removeFromCart(product.id);
+        this.removeFromCart(product.id, variantId);
         this.showNotification(t('productRemoved'), 'info');
       } else {
         this.showNotification(t('productUpdated'), 'success');
@@ -36,6 +37,8 @@ export const store = reactive({
     } else if (quantity > 0) {
       this.cart.push({
         id: product.id,
+        variant_id: variantId,
+        variant_name: product.variant_name, // Store name here
         title: product.title,
         author: product.author,
         price: product.price,
@@ -48,8 +51,8 @@ export const store = reactive({
     }
   },
 
-  updateQuantity(productId, change) {
-    const itemIndex = this.cart.findIndex(item => item.id === productId);
+  updateQuantity(productId, change, variantId = null) {
+    const itemIndex = this.cart.findIndex(item => item.id === productId && item.variant_id === variantId);
     if (itemIndex > -1) {
       this.cart[itemIndex].quantity += change;
       if (this.cart[itemIndex].quantity <= 0) {
@@ -65,8 +68,8 @@ export const store = reactive({
     }
   },
 
-  removeFromCart(productId) {
-    const index = this.cart.findIndex(item => item.id === productId);
+  removeFromCart(productId, variantId = null) {
+    const index = this.cart.findIndex(item => item.id === productId && item.variant_id === variantId);
     if (index > -1) {
       this.cart.splice(index, 1);
     }
