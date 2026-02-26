@@ -29,10 +29,11 @@ export const store = reactive({
     if (existingItem) {
       existingItem.quantity += quantity;
       if (existingItem.quantity <= 0) {
+        const removedTitle = existingItem.title; // Capture before removal
         this.removeFromCart(product.id, variantId);
-        this.showNotification(t('productRemoved'), 'info');
+        this.showNotification(t('productRemoved', { name: removedTitle }), 'info');
       } else {
-        this.showNotification(t('productUpdated'), 'success');
+        this.showNotification(t('productUpdated', { name: existingItem.title, qty: existingItem.quantity }), 'success');
       }
     } else if (quantity > 0) {
       this.cart.push({
@@ -47,7 +48,7 @@ export const store = reactive({
         originalPrice: product.originalPrice,
         quantity: quantity
       });
-      this.showNotification(t('productAdded'), 'success');
+      this.showNotification(t('productAdded', { name: product.title, qty: quantity }), 'success');
     }
   },
 
@@ -56,11 +57,12 @@ export const store = reactive({
     if (itemIndex > -1) {
       this.cart[itemIndex].quantity += change;
       if (this.cart[itemIndex].quantity <= 0) {
+        const removedTitle = this.cart[itemIndex].title; // Capture before removal
         this.cart.splice(itemIndex, 1);
-        this.showNotification(t('productRemoved'), 'info');
+        this.showNotification(t('productRemoved', { name: removedTitle }), 'info');
       } else {
         if (change > 0) {
-          this.showNotification(t('productAdded'), 'success');
+          this.showNotification(t('productAdded', { name: this.cart[itemIndex].title, qty: change }), 'success');
         } else {
           this.showNotification(t('productDecreased'), 'info');
         }

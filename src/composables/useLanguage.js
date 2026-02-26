@@ -125,6 +125,11 @@ const translations = {
         payNow: 'Bayar Sekarang',
         itemsCount: 'Barang',
         detail: 'Detail',
+
+        // Notifications (new or updated)
+        productAdded: '{name} ({qty} item) ditambahkan ke keranjang',
+        productUpdated: 'Jumlah {name} diperbarui menjadi {qty}',
+        productRemoved: '{name} dihapus dari keranjang',
     },
 
     en: {
@@ -240,9 +245,9 @@ const translations = {
         copyright: '© 2024 Dee Lestari. All rights reserved.',
 
         // Notification
-        productAdded: 'Product added to cart',
-        productUpdated: 'Quantity updated',
-        productRemoved: 'Product removed from cart',
+        productAdded: '{name} ({qty} item) added to cart',
+        productUpdated: '{name} quantity updated to {qty}',
+        productRemoved: '{name} removed from cart',
         productDecreased: 'Product quantity decreased',
         cartEmpty: 'Your cart is empty',
 
@@ -257,8 +262,15 @@ const translations = {
 
 // --- Standalone helpers for non-component files ---
 export const i18nState = state;
-export const t = (key) => {
-    return translations[state.lang]?.[key] ?? translations['id'][key] ?? key;
+export const t = (key, params = {}) => {
+    let translation = translations[state.lang]?.[key] ?? translations['id'][key] ?? key;
+
+    // Replace parameters if any
+    Object.keys(params).forEach(paramKey => {
+        translation = translation.replace(`{${paramKey}}`, params[paramKey]);
+    });
+
+    return translation;
 };
 
 // --- Composable ---

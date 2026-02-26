@@ -15,12 +15,31 @@ const formData = ref({
   city: '',
   zip: '',
   notes: '',
-  storeLocation: ''
+  storeLocation: '',
+  provinceId: '0',
+  cityId: '0'
 });
 
 const voucherCode = ref('');
 const paymentMethod = ref('QRIS');
 const allProducts = ref([]);
+
+// Address Modal State
+const showAddressModal = ref(false);
+const provinces = ref([]);
+const cities = ref([]);
+const loadingProvinces = ref(false);
+const loadingCities = ref(false);
+
+const addressForm = ref({
+  recipientName: '',
+  addressLabel: '', // e.g., 'Rumah', 'Kantor'
+  phone: '',
+  provinceId: '',
+  cityName: '',
+  zip: '',
+  detail: ''
+});
 
 // Fetch all products to get admin_fee and other details
 onMounted(async () => {
@@ -32,6 +51,72 @@ onMounted(async () => {
   } catch (err) {
     console.error('Error fetching products for checkout:', err);
   }
+});
+
+const fetchProvinces = async () => {
+  if (provinces.value.length > 0) return;
+  loadingProvinces.value = true;
+  try {
+    const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+    const response = await fetch(`${baseUrl}/api/province`);
+    const result = await response.json();
+    provinces.value = result.data || [];
+  } catch (err) {
+    console.error('Error fetching provinces:', err);
+  } finally {
+    loadingProvinces.value = false;
+  }
+};
+
+const fetchCities = async (provinceId) => {
+  if (!provinceId) return;
+  loadingCities.value = true;
+  try {
+    const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+    const response = await fetch(`${baseUrl}/api/city?province_id=${provinceId}`);
+    const result = await response.json();
+    cities.value = result.data || [];
+  } catch (err) {
+    console.error('Error fetching cities:', err);
+  } finally {
+    loadingCities.value = false;
+  }
+};
+
+const openAddressModal = () => {
+  showAddressModal.value = true;
+  fetchProvinces();
+};
+
+const saveAddress = () => {
+  const selectedProvince = provinces.value.find(p => p.id == addressForm.value.provinceId);
+  const selectedCity = cities.value.find(c => c.name == addressForm.value.cityName);
+  const provinceName = selectedProvince ? selectedProvince.name : '';
+  
+  formData.value.fullName = addressForm.value.recipientName;
+  formData.value.phone = addressForm.value.phone;
+  formData.value.address = `${addressForm.value.detail}, ${addressForm.value.cityName}, ${provinceName}`;
+  formData.value.city = addressForm.value.cityName;
+  formData.value.zip = addressForm.value.zip;
+  formData.value.provinceId = addressForm.value.provinceId || '0';
+  formData.value.cityId = selectedCity ? selectedCity.id : '0';
+  
+  showAddressModal.value = false;
+};
+
+const availableStores = computed(() => {
+  const stores = [];
+  enrichedCart.value.forEach(item => {
+    const product = allProducts.value.find(p => p.id == item.id);
+    if (product && product.has_store_location) {
+      const loc = product.has_store_location;
+      // Add if not already in list
+      if (!stores.find(s => s.id === loc.id)) {
+        stores.push(loc);
+      }
+    }
+  });
+  return stores;
 });
 
 const enrichedCart = computed(() => {
@@ -121,10 +206,10 @@ const placeOrder = async () => {
       address: {
         user_id: 12,
         is_main_address: 1,
-        province_id: "0",
-        city_id: "0",
+        province_id: formData.value.provinceId || "0",
+        city_id: formData.value.cityId || "0",
         address_detail: formData.value.address,
-        address_name: "Pickup",
+        address_name: "Shipping Address",
         zipcode: formData.value.zip || "15147",
         latitude: "",
         longitude: "",
@@ -212,17 +297,25 @@ const placeOrder = async () => {
                   <div class="custom-select-wrapper">
                     <select v-model="formData.storeLocation" class="custom-select">
                       <option value="" disabled selected>{{ t('storePlaceholder') }}</option>
-                      <option value="pamulang">Pamulang Square</option>
-                      <option value="ciputat">Ciputat Mega Mall</option>
-                      <option value="bsd">BSD Plaza</option>
+                      <option v-for="store in availableStores" :key="store.id" :value="store.store_name">
+                        {{ store.store_name }} ({{ store.full_addres }})
+                      </option>
                     </select>
                     <div class="select-arrow"></div>
                   </div>
                 </div>
 
                 <div class="form-group">
-                  <label>{{ t('alamat') }} <span class="required">*</span></label>
-                  <textarea v-model="formData.address" rows="3" :placeholder="t('alamatPlaceholder')" required></textarea>
+                  <div class="label-with-action">
+                    <label>{{ t('alamat') }} <span class="required">*</span></label>
+                    <button type="button" class="text-btn" @click="openAddressModal">Pilih Alamat</button>
+                  </div>
+                  <div class="address-display" v-if="formData.address">
+                    <p>{{ formData.address }}</p>
+                  </div>
+                  <div class="address-placeholder" v-else @click="openAddressModal">
+                    <p>Klik untuk memilih atau memasukkan alamat</p>
+                  </div>
                 </div>
               </form>
             </div>
@@ -336,7 +429,73 @@ const placeOrder = async () => {
       </div>
     </div>
   </div>
-</template>
+
+    <!-- Address Modal -->
+    <div class="modal-overlay" v-if="showAddressModal" @click.self="showAddressModal = false">
+      <div class="address-modal">
+        <div class="modal-header">
+          <h3>Pilih Alamat</h3>
+          <button class="close-modal" @click="showAddressModal = false">×</button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Nama Penerima</label>
+            <input type="text" v-model="addressForm.recipientName" placeholder="Masukan Nama Penerima">
+          </div>
+
+          <div class="form-group">
+            <label>Nama Alamat</label>
+            <input type="text" v-model="addressForm.addressLabel" placeholder="Rumah, Kantor, ...">
+          </div>
+
+          <div class="form-group">
+            <label>No. Telp</label>
+            <input type="text" v-model="addressForm.phone" placeholder="08XX XXXX XXXX">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Provinsi</label>
+              <div class="custom-select-wrapper">
+                <select v-model="addressForm.provinceId" @change="fetchCities(addressForm.provinceId)" class="custom-select">
+                  <option value="" disabled>Pilih Provinsi</option>
+                  <option v-for="prov in provinces" :key="prov.id" :value="prov.id">{{ prov.name }}</option>
+                </select>
+                <div class="select-arrow"></div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Kota</label>
+              <div class="custom-select-wrapper">
+                <select v-model="addressForm.cityName" class="custom-select" :disabled="!addressForm.provinceId">
+                  <option value="" disabled>Pilih Kota</option>
+                  <option v-for="city in cities" :key="city.id" :value="city.name">{{ city.name }}</option>
+                </select>
+                <div class="select-arrow"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Kode Pos</label>
+            <input type="text" v-model="addressForm.zip" placeholder="Masukan Kode Pos">
+          </div>
+
+          <div class="form-group">
+            <label>Detail Alamat</label>
+            <textarea v-model="addressForm.detail" placeholder="Kecamatan, Desa, No. Rumah, dll" rows="3"></textarea>
+          </div>
+
+          <p class="disclaimer">Periksa kembali alamat yang Anda masukkan untuk memastikan tidak ada kesalahan.</p>
+          
+          <button class="save-address-btn" @click="saveAddress">
+            <span class="check-icon">✓</span> Simpan Alamat
+          </button>
+        </div>
+      </div>
+    </div>
+  </template>
 
 <style scoped>
 .checkout-page {
@@ -782,6 +941,179 @@ input:focus, textarea:focus {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+.label-with-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.text-btn {
+  background: transparent;
+  border: none;
+  color: var(--secondary-accent, #9e4d3d);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.address-display {
+  padding: 15px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  min-height: 60px;
+}
+
+.address-display p {
+  margin: 0;
+  color: #fff;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.address-placeholder {
+  padding: 20px;
+  background: #1a1a1a;
+  border: 1px dashed #444;
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.address-placeholder:hover {
+  border-color: var(--secondary-accent, #9e4d3d);
+  background: #222;
+}
+
+.address-placeholder p {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 3000;
+  backdrop-filter: blur(5px);
+  padding: 20px;
+}
+
+.address-modal {
+  background: #222;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  border-radius: 16px;
+  border: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  animation: modalIn 0.3s ease-out;
+}
+
+@keyframes modalIn {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-header {
+  padding: 20px 25px;
+  border-bottom: 1px solid #333;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  color: #fff;
+}
+
+.close-modal {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: #888;
+  cursor: pointer;
+}
+
+.modal-body {
+  padding: 25px;
+  overflow-y: auto;
+}
+
+.modal-body .form-group {
+  margin-bottom: 18px;
+}
+
+.modal-body label {
+  font-size: 0.85rem;
+  color: #aaa;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.modal-body input, 
+.modal-body textarea, 
+.modal-body .custom-select {
+  background: #111;
+  border-color: #333;
+}
+
+.modal-body input:focus, 
+.modal-body textarea:focus, 
+.modal-body .custom-select:focus {
+  border-color: var(--secondary-accent, #9e4d3d);
+}
+
+.disclaimer {
+  font-size: 0.8rem;
+  color: #888;
+  line-height: 1.4;
+  margin: 20px 0;
+}
+
+.save-address-btn {
+  width: 100%;
+  padding: 14px;
+  background: #003366; /* Deep blue as in screenshot */
+  color: #fff;
+  border: none;
+  border-radius: 50px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.3s;
+}
+
+.save-address-btn:hover {
+  background: #004488;
+  transform: translateY(-2px);
+}
+
+.check-icon {
+  font-size: 1.1rem;
 }
 
 @media (max-width: 900px) {
