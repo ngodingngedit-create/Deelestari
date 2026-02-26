@@ -22,7 +22,7 @@ const filteredProducts = computed(() => {
                             product.categoryDisplay.toLowerCase() === activeCategory.value.toLowerCase();
                             // In legacy script: category check was against data-category (slug) OR title includes activeChip
                             // Here we just match strict category or 'Semua'.
-                            // Let's refine based on legacy:
+                            // Lets refine based on legacy:
                             // const lowerChip = activeChip.toLowerCase();
                             // const matchesChip = activeChip === 'Semua' || category === lowerChip || title.includes(lowerChip);
                             
