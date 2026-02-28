@@ -20,6 +20,9 @@ const formData = ref({
   cityId: '0'
 });
 
+const selectedCourier = ref('');
+const selectedCourierType = ref('');
+
 const voucherCode = ref('');
 const paymentMethod = ref('QRIS');
 const allProducts = ref([]);
@@ -150,7 +153,7 @@ const totalDiscount = computed(() => {
 });
 
 const shippingCost = computed(() => {
-  return subtotal.value > 0 ? 0 : 0; // Free shipping for now
+  return (selectedCourier.value && selectedCourierType.value) ? 10000 : 0;
 });
 
 const voucherDiscount = computed(() => {
@@ -199,9 +202,9 @@ const placeOrder = async () => {
       payment_method: "xendit",
       payment_method_id: 4,
       courier: {
-        main: "JNE",
-        type: "JTR",
-        price: 0
+        main: selectedCourier.value || "JNE",
+        type: selectedCourierType.value || "REG",
+        price: shippingCost.value
       },
       address: {
         user_id: 12,
@@ -315,6 +318,34 @@ const placeOrder = async () => {
                   </div>
                   <div class="address-placeholder" v-else @click="openAddressModal">
                     <p>Klik untuk memilih atau memasukkan alamat</p>
+                  </div>
+                </div>
+
+                <!-- Courier Selection -->
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>{{ t('pilihKurir') }} <span class="required">*</span></label>
+                    <div class="custom-select-wrapper">
+                      <select v-model="selectedCourier" class="custom-select" required>
+                        <option value="" disabled selected>{{ t('kurirPlaceholder') }}</option>
+                        <option value="JNE">JNE</option>
+                        <option value="POS">POS Indonesia</option>
+                        <option value="TIKI">TIKI</option>
+                      </select>
+                      <div class="select-arrow"></div>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label>{{ t('tipeKurir') }} <span class="required">*</span></label>
+                    <div class="custom-select-wrapper">
+                      <select v-model="selectedCourierType" class="custom-select" required>
+                        <option value="" disabled selected>{{ t('tipePlaceholder') }}</option>
+                        <option value="REG">Reguler</option>
+                        <option value="KARGO">Kargo</option>
+                        <option value="INSTAN">Instan / Same Day</option>
+                      </select>
+                      <div class="select-arrow"></div>
+                    </div>
                   </div>
                 </div>
               </form>

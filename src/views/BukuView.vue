@@ -57,7 +57,7 @@ const closeProductModal = () => {
 };
 
 onMounted(() => {
-  fetchProducts(1, false, 48);
+  fetchProducts(1, false, [48, 129]);
 });
 </script>
 

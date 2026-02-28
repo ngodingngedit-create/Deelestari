@@ -17,6 +17,7 @@ const featuredBooks = [
     desc: 'Awal mula perjalanan 20 tahun Supernova. Eksplorasi sains, spiritualitas, dan cinta yang tak biasa.',
     bg: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
     accent: '#4a90d9',
+    image: '/images/supernova.jpeg',
   },
   {
     id: 2,
@@ -27,6 +28,7 @@ const featuredBooks = [
     desc: 'Kisah Kugy dan Keenan. Tentang mimpi, persahabatan, dan cinta yang melaju seperti perahu kertas di lautan harapan.',
     bg: 'linear-gradient(135deg, #2c2c2c 0%, #3d3d3d 100%)',
     accent: '#e8c97a',
+    image: '/images/perahukertas.jpeg',
   },
   {
     id: 3,
@@ -37,6 +39,7 @@ const featuredBooks = [
     desc: 'Obsesi akan aroma mematikan. Petualangan Raras dan Jati Wesi menelusuri puspa karsa yang legendaris.',
     bg: 'linear-gradient(135deg, #0d1f0d 0%, #1a2f1a 50%, #2d4a2d 100%)',
     accent: '#7ec87e',
+    image: '/images/aromakarsa.jpeg',
   },
   {
     id: 4,
@@ -47,6 +50,7 @@ const featuredBooks = [
     desc: 'Ping, remaja Cijulang dengan bakat musik absolut, harus pindah ke Jakarta dan menemukan irama hidup barunya.',
     bg: 'linear-gradient(135deg, #1c2333 0%, #2c3e50 100%)',
     accent: '#a78bfa',
+    image: '/images/rapijali.jpeg',
   },
   {
     id: 5,
@@ -57,6 +61,7 @@ const featuredBooks = [
     desc: 'Delapan belas karya terbaik Dee selama satu dekade. Cerita-cerita yang hangat seperti secangkir kopi di pagi hari.',
     bg: 'linear-gradient(135deg, #2d1b0e 0%, #4a2f1a 50%, #6b4226 100%)',
     accent: '#d4956c',
+    image: '/images/filosofikopi.jpeg',
   },
 ];
 
@@ -148,7 +153,8 @@ onUnmounted(() => {
                 </div>
               </div>
               <div class="slide-visual">
-                <div class="book-card-mock" :style="{ '--accent': book.accent }">
+                <img v-if="book.image" :src="book.image" :alt="book.title" class="book-cover-img" />
+                <div v-else class="book-card-mock" :style="{ '--accent': book.accent }">
                   <span class="book-title-mock">{{ book.title }}</span>
                   <span class="book-author-mock">Dee Lestari</span>
                 </div>
@@ -395,6 +401,19 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+.book-cover-img {
+  width: 220px;
+  height: 320px;
+  object-fit: cover;
+  border-radius: 12px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+  transition: transform 0.3s ease;
+}
+
+.book-cover-img:hover {
+  transform: translateY(-8px) rotate(2deg);
 }
 
 .book-card-mock {

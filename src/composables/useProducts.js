@@ -18,7 +18,13 @@ export function useProducts() {
             const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
             let url = `${baseUrl}/api/product?page=${page}`;
             if (creatorIdRef.value) {
-                url += `&creator_id=${creatorIdRef.value}`;
+                if (Array.isArray(creatorIdRef.value)) {
+                    creatorIdRef.value.forEach(id => {
+                        url += `&creator_id[]=${id}`;
+                    });
+                } else {
+                    url += `&creator_id=${creatorIdRef.value}`;
+                }
             }
             const response = await fetch(url);
             const result = await response.json();
