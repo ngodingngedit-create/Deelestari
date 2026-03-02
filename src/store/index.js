@@ -2,6 +2,7 @@ import { reactive, computed } from 'vue';
 import { t } from '../composables/useLanguage';
 
 export const store = reactive({
+  user: null, // Track authenticated user
   cart: [],
   lastOrder: null,
   checkoutLoading: false,
@@ -9,6 +10,32 @@ export const store = reactive({
     show: false,
     message: '',
     type: 'success' // 'success' or 'info'
+  },
+
+  get isAuthenticated() {
+    return this.user !== null;
+  },
+
+  login(userData) {
+    this.user = userData;
+    // Store in localStorage for persistence
+    localStorage.setItem('user', JSON.stringify(userData));
+  },
+
+  logout() {
+    this.user = null;
+    localStorage.removeItem('user');
+  },
+
+  initAuth() {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        this.user = JSON.parse(storedUser);
+      } catch (e) {
+        this.user = null;
+      }
+    }
   },
 
   get totalItems() {
@@ -86,3 +113,5 @@ export const store = reactive({
     this.lastOrder = orderData;
   }
 });
+
+store.initAuth(); // Initialize auth state on load

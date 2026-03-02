@@ -1,8 +1,9 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { RouterView } from 'vue-router';
 import SiteHeader from './components/layout/SiteHeader.vue';
 import MobileSidebar from './components/layout/MobileSidebar.vue';
+import DashboardSidebar from './components/layout/DashboardSidebar.vue';
 import CartSidebar from './components/cart/CartSidebar.vue';
 import FloatingCartBar from './components/cart/FloatingCartBar.vue';
 import ToastNotification from './components/ui/ToastNotification.vue';
@@ -14,6 +15,10 @@ const isMobileMenuOpen = ref(false);
 const isCartOpen = ref(false);
 const router = useRouter();
 const route = useRoute();
+
+onMounted(() => {
+  store.initAuth();
+});
 
 const toggleMobileMenu = () => {
   isMobileMenuOpen.value = !isMobileMenuOpen.value;
@@ -39,6 +44,7 @@ const handleCheckout = () => {
     router.push('/checkout');
   }
 };
+const isDashboard = computed(() => route.path.startsWith('/dashboard'));
 </script>
 
 <template>
@@ -55,7 +61,13 @@ const handleCheckout = () => {
       @checkout="handleCheckout"
     />
 
-    <RouterView />
+    <div class="main-layout" :class="{ 'has-sidebar': store.isAuthenticated && isDashboard }">
+      <DashboardSidebar v-if="store.isAuthenticated && isDashboard" />
+      
+      <div class="content-wrapper">
+        <RouterView />
+      </div>
+    </div>
 
     <FloatingCartBar 
       v-if="!isCartOpen"
@@ -69,5 +81,17 @@ const handleCheckout = () => {
 </template>
 
 <style>
-/* Global styles imported in main.js */
+.main-layout {
+  display: flex;
+  min-height: calc(100vh - 80px); /* Adjust based on header height */
+}
+
+.main-layout.has-sidebar .content-wrapper {
+  flex: 1;
+  background: #141414;
+}
+
+.content-wrapper {
+  width: 100%;
+}
 </style>

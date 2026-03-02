@@ -1,69 +1,5 @@
 <script setup>
-const articles = [
-  { 
-    id: 1, 
-    title: 'Menjelaskan Air Mata', 
-    date: '28 Mar 2023', 
-    category: 'Personal', 
-    excerpt: 'Ketika sebuah lelucon perlu dijelaskan, konon itu akan mematikan kelucuannya. Barangkali begitu juga dengan air mata.',
-    image: 'https://deelestari.com/wp-content/uploads/2023/03/Dee-SriMulyani-1080x675.jpg',
-    url: 'https://deelestari.com/id/2023/03/28/menjelaskan-air-mata/'
-  },
-  { 
-    id: 2, 
-    title: 'Kelas Kaizen Writing x Kuncie – Batch 7', 
-    date: '11 Jul 2022', 
-    category: 'Events', 
-    excerpt: 'Kamu suka menulis? Tertarik menekuni seni menulis dengan lebih serius?',
-    image: 'https://deelestari.com/wp-content/uploads/2022/07/HomeBG_KaizenKuncie-1090x660px-1F.png',
-    url: 'https://deelestari.com/id/2022/07/11/kelas-kaizen-writing-x-kuncie-batch-7/'
-  },
-  { 
-    id: 3, 
-    title: 'Kelas Kuncie: Dasar Menulis Fiksi', 
-    date: '25 Jun 2022', 
-    category: 'Events', 
-    excerpt: 'Menulis merupakan jembatan terkaya untuk menghidupkan imajinasi. Sama halnya seperti ilmu dan seni.',
-    image: 'https://deelestari.com/wp-content/uploads/2022/06/HomeBG_Kuncie-1A.png',
-    url: 'https://deelestari.com/id/2022/06/25/kelas-kuncie-dasar-menulis-fiksi/'
-  },
-  { 
-    id: 4, 
-    title: 'Save the Cat! Writes a Novel – Sebuah Apresiasi', 
-    date: '30 Nov 2021', 
-    category: 'Book Review', 
-    excerpt: 'Jika harus memilih satu buku tentang seni bercerita yang sangat berpengaruh dan berguna bagi saya hingga detik ini, tanpa ragu saya akan menyebutkan buku Save The Cat! dari Blake Snyder.',
-    image: 'https://deelestari.com/wp-content/uploads/2021/11/SaveTheCat-3B.jpg',
-    url: 'https://deelestari.com/id/2021/11/30/save-the-cat-writes-a-novel-sebuah-apresiasi/'
-  },
-  { 
-    id: 5, 
-    title: 'RAPIJALI: Mengapa Serial?', 
-    date: '04 Mar 2021', 
-    category: 'Rapijali', 
-    excerpt: 'Penulisan Rapijali membawa saya ke banyak persimpangan kreatif. Antara setia pada setting tahun ’90-an atau membawanya ke masa kini, antara jadi Tim Oding atau Tim Rakai, dan masih banyak “antara” lainnya.',
-    image: 'https://deelestari.com/wp-content/uploads/2021/03/RPJL-WebBann_1.5A.jpg',
-    url: 'https://deelestari.com/id/2021/03/04/rapijali-mengapa-serial/'
-  },
-  { 
-    id: 6, 
-    title: 'RAPIJALI', 
-    date: '08 Jan 2021', 
-    category: 'Rapijali', 
-    excerpt: 'Sejauh yang saya ingat, musik dan menulis merupakan bagian tak terpisahkan dari hidup saya. Bahkan, jauh sebelum saya dikenal sebagai seorang penulis, bermusik lebih dahulu menjadi karier saya sejak usia remaja.',
-    image: 'https://deelestari.com/wp-content/uploads/2021/01/ManuskripPing-asli_800.jpg',
-    url: 'https://deelestari.com/id/2021/01/08/rapijali/'
-  },
-  { 
-    id: 7, 
-    title: 'Di Setapak Bersama Arswendo', 
-    date: '22 Jul 2019', 
-    category: 'Personal', 
-    excerpt: 'Beberapa minggu sebelum Supernova 1 hendak dicetak, seorang teman, Ewink, menawarkan bantuan menjadi narahubung ke Arswendo Atmowiloto. Kami bermaksud meminta kesediaan beliau untuk memberikan satu paragraf blurb di kaver Supernova.',
-    image: 'https://deelestari.com/wp-content/uploads/2019/07/Setapak-thumb.jpg',
-    url: 'https://deelestari.com/id/2019/07/22/di-setapak-bersama-arswendo/'
-  }
-];
+import { articles } from '../data/articles.js';
 
 const featuredPost = articles[0];
 </script>
@@ -83,7 +19,7 @@ const featuredPost = articles[0];
             <span class="category-tag">Terbaru</span>
             <h2 class="featured-title">{{ featuredPost.title }}</h2>
             <p class="featured-desc">{{ featuredPost.excerpt }}</p>
-            <a :href="featuredPost.url" target="_blank" class="btn-primary">Baca Selengkapnya</a>
+            <router-link :to="`/blog/${featuredPost.id}`" class="btn-primary">Baca Selengkapnya</router-link>
           </div>
         </div>
 
@@ -102,7 +38,7 @@ const featuredPost = articles[0];
               </div>
               <h3 class="card-title">{{ post.title }}</h3>
               <p class="card-excerpt">{{ post.excerpt }}</p>
-              <a :href="post.url" target="_blank" class="read-more">Baca Selengkapnya →</a>
+              <router-link :to="`/blog/${post.id}`" class="read-more">Baca Selengkapnya →</router-link>
             </div>
           </div>
         </div>

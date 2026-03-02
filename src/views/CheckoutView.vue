@@ -20,8 +20,10 @@ const formData = ref({
   cityId: '0'
 });
 
-const selectedCourier = ref('');
-const selectedCourierType = ref('');
+const selectedCourier = ref('Byteship');
+const selectedRate = ref(null);
+const shippingRates = ref([]);
+const isCheckingOngkir = ref(false);
 
 const voucherCode = ref('');
 const paymentMethod = ref('QRIS');
@@ -127,7 +129,8 @@ const enrichedCart = computed(() => {
     const product = allProducts.value.find(p => p.id == item.id);
     return {
       ...item,
-      admin_fee: product ? parseFloat(product.admin_fee || 0) : 0
+      admin_fee: product ? parseFloat(product.admin_fee || 0) : 0,
+      weight: product ? parseFloat(product.weight || 1000) : 1000
     };
   });
 });
@@ -152,8 +155,53 @@ const totalDiscount = computed(() => {
   }, 0);
 });
 
+const fetchShippingRates = async () => {
+  if (!formData.value.zip) {
+    store.showNotification('Silakan pilih alamat terlebih dahulu agar kode pos terbaca', 'info');
+    return;
+  }
+
+  isCheckingOngkir.value = true;
+  shippingRates.value = [];
+  selectedRate.value = null;
+
+  try {
+    const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+    
+    // Calculate total weight based on product data
+    const totalWeight = enrichedCart.value.reduce((sum, item) => sum + (item.quantity * item.weight), 0);
+
+    const payload = {
+      origin_postal_code: "16519", // Updated as requested
+      destination_postal_code: formData.value.zip,
+      weight: totalWeight
+    };
+
+    const response = await fetch(`${baseUrl}/api/shipping/cek-ongkir`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+    if (result.body && result.body.success) {
+      shippingRates.value = result.body.pricing || [];
+      if (shippingRates.value.length === 0) {
+        store.showNotification('Tidak ada pilihan pengiriman tersedia untuk lokasi ini', 'info');
+      }
+    } else {
+      store.showNotification(result.body?.message || 'Gagal mengambil data ongkir', 'error');
+    }
+  } catch (err) {
+    console.error('Error fetching shipping rates:', err);
+    store.showNotification('Terjadi kesalahan saat mengecek ongkir', 'info');
+  } finally {
+    isCheckingOngkir.value = false;
+  }
+};
+
 const shippingCost = computed(() => {
-  return (selectedCourier.value && selectedCourierType.value) ? 10000 : 0;
+  return selectedRate.value ? selectedRate.value.price : 0;
 });
 
 const voucherDiscount = computed(() => {
@@ -202,8 +250,8 @@ const placeOrder = async () => {
       payment_method: "xendit",
       payment_method_id: 4,
       courier: {
-        main: selectedCourier.value || "JNE",
-        type: selectedCourierType.value || "REG",
+        main: selectedRate.value?.courier_name || "Byteship",
+        type: selectedRate.value?.courier_service_name || "Standard",
         price: shippingCost.value
       },
       address: {
@@ -321,31 +369,36 @@ const placeOrder = async () => {
                   </div>
                 </div>
 
-                <!-- Courier Selection -->
+                <!-- Courier Selection (Byteship API) -->
                 <div class="form-row">
                   <div class="form-group">
-                    <label>{{ t('pilihKurir') }} <span class="required">*</span></label>
+                    <label>Penyedia Kurir <span class="required">*</span></label>
                     <div class="custom-select-wrapper">
                       <select v-model="selectedCourier" class="custom-select" required>
-                        <option value="" disabled selected>{{ t('kurirPlaceholder') }}</option>
-                        <option value="JNE">JNE</option>
-                        <option value="POS">POS Indonesia</option>
-                        <option value="TIKI">TIKI</option>
+                        <option value="Byteship">Byteship</option>
                       </select>
                       <div class="select-arrow"></div>
                     </div>
                   </div>
                   <div class="form-group">
-                    <label>{{ t('tipeKurir') }} <span class="required">*</span></label>
-                    <div class="custom-select-wrapper">
-                      <select v-model="selectedCourierType" class="custom-select" required>
-                        <option value="" disabled selected>{{ t('tipePlaceholder') }}</option>
-                        <option value="REG">Reguler</option>
-                        <option value="KARGO">Kargo</option>
-                        <option value="INSTAN">Instan / Same Day</option>
-                      </select>
-                      <div class="select-arrow"></div>
+                    <label>Servis Pengiriman <span class="required">*</span></label>
+                    <div class="flex-row-action">
+                      <div class="custom-select-wrapper flex-grow">
+                        <select v-model="selectedRate" class="custom-select" required :disabled="shippingRates.length === 0">
+                          <option :value="null" disabled>{{ shippingRates.length > 0 ? 'Pilih Servis' : 'Klik Cek Ongkir Dulu' }}</option>
+                          <option v-for="rate in shippingRates" :key="rate.courier_service_code" :value="rate">
+                            {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
+                          </option>
+                        </select>
+                        <div class="select-arrow"></div>
+                      </div>
+                      <button type="button" class="btn-check-ongkir" @click="fetchShippingRates" :disabled="isCheckingOngkir">
+                         {{ isCheckingOngkir ? 'Wait...' : 'Cek Ongkir' }}
+                      </button>
                     </div>
+                    <p v-if="selectedRate" class="shipping-info-text">
+                      {{ selectedRate.description }} (Estimasi: {{ selectedRate.duration }})
+                    </p>
                   </div>
                 </div>
               </form>
@@ -1147,9 +1200,138 @@ input:focus, textarea:focus {
   font-size: 1.1rem;
 }
 
+.flex-row-action {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.flex-grow {
+  flex-grow: 1;
+}
+
+.btn-check-ongkir {
+  background: var(--secondary-accent, #9e4d3d);
+  color: #fff;
+  border: none;
+  padding: 0 15px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.3s;
+}
+
+.btn-check-ongkir:hover:not(:disabled) {
+  background: #b55846;
+  transform: translateY(-1px);
+}
+
+.btn-check-ongkir:disabled {
+  background: #666;
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.shipping-info-text {
+  font-size: 0.8rem;
+  color: #888;
+  margin-top: 6px;
+  font-style: italic;
+}
+
 @media (max-width: 900px) {
   .checkout-layout {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .checkout-page {
+    padding: 20px 15px 120px 15px;
+  }
+
+  .checkout-header h1 {
+    font-size: 1.8rem;
+  }
+
+  .section-header {
+    padding: 15px 15px 0 15px;
+  }
+
+  .section-body {
+    padding: 0 15px 15px 15px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .flex-row-action {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-check-ongkir {
+    padding: 12px;
+  }
+
+  .order-item {
+    flex-direction: row;
+    gap: 12px;
+    padding: 15px 0;
+    align-items: flex-start;
+  }
+
+  .item-visual {
+    width: 50px;
+    height: 70px;
+  }
+
+  .item-header-row {
+    flex-direction: row;
+    gap: 10px;
+    margin-bottom: 5px;
+  }
+
+  .item-title {
+    font-size: 0.9rem;
+    line-height: 1.3;
+  }
+
+  .item-meta-info {
+    font-size: 0.75rem;
+    gap: 1px;
+    margin-bottom: 5px;
+  }
+
+  .item-pricing {
+    text-align: right;
+    align-items: flex-end;
+    min-width: 80px;
+  }
+
+  .item-price {
+    font-size: 0.9rem;
+  }
+
+  .price-stack {
+    align-items: flex-end;
+  }
+
+  .total-val {
+    font-size: 1.2rem;
+  }
+
+  .address-modal {
+    padding: 15px;
+    border-radius: 12px;
+  }
+
+  .modal-body {
+    padding: 15px;
   }
 }
 </style>

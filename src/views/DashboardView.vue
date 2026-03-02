@@ -1,125 +1,230 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { articles as initialArticles } from '../data/articles.js';
 
-// Sample blog data (ideally this would come from a store or API)
-const articles = [
-  { 
-    id: 1, 
-    title: 'Dasar Penulisan Fiksi: Membangun Dunia', 
-    date: '12 Feb 2024', 
-    category: 'Dasar Penulisan', 
-    excerpt: 'Bagaimana menciptakan latar belakang yang terasa nyata dan mendalam bagi pembaca...', 
-    color: '#2a1a1a',
-    image: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?q=80&w=1000'
-  },
-  { 
-    id: 2, 
-    title: 'Seni Swasunting bagi Penulis Pemula', 
-    date: '05 Jan 2024', 
-    category: 'Teknik', 
-    excerpt: 'Menulis adalah menggali, menyunting adalah memahat. Pelajari cara mengasah naskah Anda...', 
-    color: '#1a1d2a',
-    image: 'https://images.unsplash.com/photo-1452421822248-d4c2b47f0c81?q=80&w=1000'
-  },
-  { 
-    id: 3, 
-    title: 'Menemukan Suara Unik dalam Tulisan', 
-    date: '20 Des 2023', 
-    category: 'Refleksi', 
-    excerpt: 'Bukan tentang meniru, tapi tentang menggali kejujuran dalam setiap kata yang Anda pilih...', 
-    color: '#1a2a1a',
-    image: 'https://images.unsplash.com/photo-1488190211105-8b0e65b80b4e?q=80&w=1000'
-  },
-  { 
-    id: 4, 
-    title: 'Riset: Pondasi Tersembunyi Sebuah Karya', 
-    date: '10 Nov 2023', 
-    category: 'Dasar Penulisan', 
-    excerpt: 'Dibalik Aroma Karsa ada riset panjang. Simak pentingnya data dalam fiksi...', 
-    color: '#2a2a1a',
-    image: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=1000'
-  },
-];
+const articles = ref([...initialArticles]);
+const isModalOpen = ref(false);
+const isEditing = ref(false);
+const currentPost = ref({
+  id: null,
+  title: '',
+  date: '',
+  category: '',
+  excerpt: '',
+  image: '',
+  content: ''
+});
+
+const openCreateModal = () => {
+  isEditing.value = false;
+  currentPost.value = {
+    id: Date.now(),
+    title: '',
+    date: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+    category: 'Blog',
+    excerpt: '',
+    image: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?q=80&w=1000',
+    content: ''
+  };
+  isModalOpen.value = true;
+};
+
+const openEditModal = (post) => {
+  isEditing.value = true;
+  currentPost.value = { ...post };
+  isModalOpen.value = true;
+};
+
+const closeModal = () => {
+  isModalOpen.value = false;
+};
+
+const savePost = () => {
+  if (isEditing.value) {
+    const index = articles.value.findIndex(p => p.id === currentPost.value.id);
+    if (index !== -1) {
+      articles.value[index] = { ...currentPost.value };
+    }
+  } else {
+    articles.value.unshift({ ...currentPost.value });
+  }
+  closeModal();
+};
+
+const deletePost = (id) => {
+  if (confirm('Apakah Anda yakin ingin menghapus artikel ini?')) {
+    articles.value = articles.value.filter(p => p.id !== id);
+  }
+};
 </script>
 
 <template>
-  <main class="dashboard-page">
-    <section class="section">
-      <div class="container">
-        <div class="dashboard-header">
+  <main class="dashboard-content">
+    <div class="container">
+      <header class="dashboard-header">
+        <div class="header-titles">
           <h1 class="page-title">Blog Dashboard</h1>
-          <p class="page-subtitle">Kelola dan lihat semua artikel blog Anda di sini.</p>
+          <p class="page-subtitle">Kelola semua artikel dan publikasi Anda di sini.</p>
         </div>
+        <button class="btn-create" @click="openCreateModal">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Tambah Blog Baru
+        </button>
+      </header>
 
-        <div class="article-grid">
-          <div v-for="post in articles" :key="post.id" class="article-card">
-            <div class="card-image" :style="{ backgroundImage: `url(${post.image})` }">
-              <div class="card-category-tag">{{ post.category }}</div>
+      <div class="article-grid">
+        <div v-for="post in articles" :key="post.id" class="article-card">
+          <div class="card-image" :style="{ backgroundImage: `url(${post.image})` }">
+             <span class="category-overlay">{{ post.category }}</span>
+          </div>
+          <div class="card-body">
+            <div class="card-meta">
+              <span class="card-date">{{ post.date }}</span>
             </div>
-            <div class="card-body">
-              <div class="card-meta">
-                <span class="card-date">{{ post.date }}</span>
+            <h3 class="card-title">{{ post.title }}</h3>
+            <p class="card-excerpt">{{ post.excerpt }}</p>
+            
+            <div class="card-footer">
+              <div class="admin-actions">
+                <button class="btn-icon edit" @click="openEditModal(post)" title="Edit">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                </button>
+                <button class="btn-icon delete" @click="deletePost(post.id)" title="Hapus">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
               </div>
-              <h3 class="card-title">{{ post.title }}</h3>
-              <p class="card-excerpt">{{ post.excerpt }}</p>
-              <div class="card-actions">
-                <a href="#" class="btn-text">Edit Artikel</a>
-                <a href="#" class="read-more">Lihat →</a>
-              </div>
+              <router-link :to="`/blog/${post.id}`" class="read-more">Lihat →</router-link>
             </div>
           </div>
         </div>
       </div>
-    </section>
+    </div>
+
+    <!-- Modal Form -->
+    <transition name="fade">
+      <div v-if="isModalOpen" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>{{ isEditing ? 'Edit Artikel' : 'Tambah Artikel Baru' }}</h3>
+            <button class="close-btn" @click="closeModal">×</button>
+          </div>
+          <form @submit.prevent="savePost" class="modal-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Judul Artikel</label>
+                <input v-model="currentPost.title" type="text" required placeholder="Masukkan judul...">
+              </div>
+              <div class="form-group">
+                <label>Kategori</label>
+                <select v-model="currentPost.category">
+                  <option>Blog</option>
+                  <option>Personal</option>
+                  <option>Events</option>
+                  <option>Book Review</option>
+                  <option>Rapijali</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label>Link Gambar Cover</label>
+              <input v-model="currentPost.image" type="text" required placeholder="https://...">
+            </div>
+
+            <div class="form-group">
+              <label>Ringkasan (Excerpt)</label>
+              <textarea v-model="currentPost.excerpt" rows="2" placeholder="Tulis ringkasan singkat..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>Konten Lengkap (HTML)</label>
+              <textarea v-model="currentPost.content" rows="6" placeholder="Tulis konten artikel di sini..."></textarea>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" class="btn-secondary" @click="closeModal">Batal</button>
+              <button type="submit" class="btn-primary">{{ isEditing ? 'Simpan Perubahan' : 'Publikasikan' }}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </transition>
   </main>
 </template>
 
 <style scoped>
-.dashboard-page {
-  background: var(--bg-dark);
-  color: var(--text-light);
+.dashboard-content {
+  padding: 4rem 2rem;
+  background: #141414;
   min-height: 100vh;
-  padding-top: 4rem;
 }
 
 .container {
-  max-width: var(--max-width);
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 0 var(--container-padding);
-}
-
-.section {
-  padding: 4rem 0;
 }
 
 .dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
   margin-bottom: 4rem;
-  border-bottom: 1px solid var(--border-color);
   padding-bottom: 2rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
 .page-title {
-  font-family: var(--font-heading);
-  font-size: 3.5rem;
+  font-family: 'Playfair Display', serif;
+  font-size: 3rem;
   color: #fff;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .page-subtitle {
-  color: var(--text-muted);
+  color: #888;
   font-size: 1.1rem;
 }
 
+.btn-create {
+  background: #9e4d3d;
+  color: #fff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-create:hover {
+  background: #b85a47;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(158, 77, 61, 0.2);
+}
+
+/* Article Grid (Same as Blog) */
 .article-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 2.5rem;
 }
 
 .article-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
+  background: #1e1e1e;
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 20px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -127,100 +232,239 @@ const articles = [
 }
 
 .article-card:hover {
-  transform: translateY(-10px);
-  border-color: var(--primary-accent);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  transform: translateY(-8px);
+  border-color: rgba(158,77,61,0.3);
 }
 
 .card-image {
-  height: 200px;
-  width: 100%;
+  height: 220px;
   background-size: cover;
   background-position: center;
   position: relative;
 }
 
-.card-category-tag {
+.category-overlay {
   position: absolute;
   top: 1rem;
   left: 1rem;
-  background: var(--primary-accent);
-  color: #fff;
-  padding: 0.4rem 0.8rem;
+  background: rgba(158, 77, 61, 0.9);
+  color: white;
+  padding: 4px 10px;
   border-radius: 4px;
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .card-body {
-  padding: 2rem;
+  padding: 1.5rem;
   flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-.card-meta {
-  margin-bottom: 1rem;
-}
-
 .card-date {
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  font-size: 0.8rem;
+  color: #666;
+  margin-bottom: 1rem;
+  display: block;
 }
 
 .card-title {
-  font-family: var(--font-heading);
-  font-size: 1.5rem;
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem;
   color: #fff;
   margin-bottom: 1rem;
   line-height: 1.3;
 }
 
 .card-excerpt {
-  font-size: 0.95rem;
-  color: var(--text-muted);
-  margin-bottom: 2rem;
+  font-size: 0.9rem;
+  color: #999;
   line-height: 1.6;
+  margin-bottom: 1.5rem;
   flex: 1;
 }
 
-.card-actions {
+.card-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255,255,255,0.05);
 }
 
-.btn-text {
-  color: var(--text-light);
-  text-decoration: none;
-  font-size: 0.85rem;
-  font-weight: 600;
-  opacity: 0.6;
-  transition: opacity 0.3s;
+.admin-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
-.btn-text:hover {
-  opacity: 1;
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-icon.edit:hover {
+  background: rgba(158, 77, 61, 0.1);
+  color: #9e4d3d;
+  border-color: #9e4d3d;
+}
+
+.btn-icon.delete:hover {
+  background: rgba(211, 47, 47, 0.1);
+  color: #d32f2f;
+  border-color: #d32f2f;
 }
 
 .read-more {
-  color: var(--primary-accent);
+  font-size: 0.85rem;
+  color: #9e4d3d;
   text-decoration: none;
-  font-size: 0.9rem;
   font-weight: 700;
-  transition: transform 0.3s;
 }
 
-.read-more:hover {
-  transform: translateX(5px);
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  padding: 2rem;
+}
+
+.modal-card {
+  background: #1e1e1e;
+  width: 100%;
+  max-width: 800px;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.modal-header {
+  padding: 1.5rem 2rem;
+  background: rgba(255,255,255,0.02);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.5rem;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 2rem;
+  cursor: pointer;
+}
+
+.modal-form {
+  padding: 2rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.form-group input, 
+.form-group select, 
+.form-group textarea {
+  background: #0f0f0f;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 12px;
+  color: #fff;
+  font-family: inherit;
+}
+
+.form-group input:focus, 
+.form-group select:focus, 
+.form-group textarea:focus {
+  outline: none;
+  border-color: #9e4d3d;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: #9e4d3d;
+  border: none;
+  color: #fff;
+  padding: 12px 32px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
 }
 
 @media (max-width: 768px) {
-  .page-title {
-    font-size: 2.5rem;
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.5rem;
+  }
+  .form-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { store } from '../store';
 import BerandaView from '../views/BerandaView.vue';
 import BukuView from '../views/BukuView.vue';
 import BioView from '../views/BioView.vue';
@@ -47,9 +48,21 @@ const router = createRouter({
             component: () => import('../views/BlogView.vue')
         },
         {
+            path: '/blog/:id',
+            name: 'blog-detail',
+            component: () => import('../views/BlogDetailView.vue')
+        },
+        {
+            path: '/login',
+            name: 'login',
+            component: () => import('../views/LoginView.vue'),
+            meta: { guest: true }
+        },
+        {
             path: '/dashboard',
             name: 'dashboard',
-            component: () => import('../views/DashboardView.vue')
+            component: () => import('../views/DashboardView.vue'),
+            meta: { requiresAuth: true }
         },
         {
             path: '/bio',
@@ -71,6 +84,17 @@ const router = createRouter({
         } else {
             return { top: 0 };
         }
+    }
+});
+
+router.beforeEach((to, from, next) => {
+    const isAuthenticated = store.isAuthenticated;
+    if (to.meta.requiresAuth && !isAuthenticated) {
+        next({ name: 'login' });
+    } else if (to.meta.guest && isAuthenticated) {
+        next({ name: 'dashboard' });
+    } else {
+        next();
     }
 });
 

@@ -1,14 +1,32 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { store } from '../../store';
 import { useLanguage } from '../../composables/useLanguage';
 
 const emit = defineEmits(['toggle-menu', 'toggle-cart']);
+const router = useRouter();
 const headerRef = ref(null);
 const langWrapperRef = ref(null);
+const userWrapperRef = ref(null);
 const { currentLang, setLang, t } = useLanguage();
 
 const isLangOpen = ref(false);
+const isUserOpen = ref(false);
+
+const toggleUserDropdown = () => {
+  if (!store.isAuthenticated) {
+    router.push('/login');
+  } else {
+    isUserOpen.value = !isUserOpen.value;
+  }
+};
+
+const handleLogout = () => {
+  store.logout();
+  isUserOpen.value = false;
+  router.push('/');
+};
 
 const toggleLangDropdown = () => {
   isLangOpen.value = !isLangOpen.value;
@@ -32,6 +50,9 @@ const handleScroll = () => {
 const handleOutsideClick = (e) => {
   if (langWrapperRef.value && !langWrapperRef.value.contains(e.target)) {
     isLangOpen.value = false;
+  }
+  if (userWrapperRef.value && !userWrapperRef.value.contains(e.target)) {
+    isUserOpen.value = false;
   }
 };
 
@@ -108,13 +129,43 @@ onUnmounted(() => {
           <span class="cart-badge" v-if="store.totalItems > 0">{{ store.totalItems }}</span>
         </button>
 
-        <!-- Profile Icon -->
-        <button class="action-btn profile-btn" aria-label="Profile">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-            <circle cx="12" cy="7" r="4"></circle>
-          </svg>
-        </button>
+        <!-- Profile Icon / User Menu -->
+        <div class="user-menu-wrapper" ref="userWrapperRef">
+          <button class="action-btn profile-btn" :class="{ 'is-auth': store.isAuthenticated }" aria-label="Profile" @click="toggleUserDropdown">
+            <template v-if="store.isAuthenticated">
+              <span class="user-name-label">{{ store.user.name }}</span>
+            </template>
+            <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </button>
+
+          <transition name="lang-pop">
+            <div v-if="isUserOpen" class="user-dropdown-card">
+              <div class="user-dropdown-header">
+                <p class="user-email">{{ store.user.email }}</p>
+              </div>
+              <router-link to="/dashboard" class="user-option-btn" @click="isUserOpen = false">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="14" width="7" height="7"></rect>
+                  <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
+                <span>Dashboard</span>
+              </router-link>
+              <button class="user-option-btn logout-btn" @click="handleLogout">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span>Keluar</span>
+              </button>
+            </div>
+          </transition>
+        </div>
       </div>
     </div>
     <div class="header-divider"></div>
@@ -225,6 +276,84 @@ onUnmounted(() => {
   font-size: 0.9rem;
   color: #9e4d3d;
   font-weight: 800;
+}
+
+/* User Menu Styles */
+.user-menu-wrapper {
+  position: relative;
+}
+
+.profile-btn.is-auth {
+  background: rgba(158, 77, 61, 0.1);
+  color: #9e4d3d;
+  padding: 6px 16px;
+  border-radius: 100px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-name-label {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-dropdown-card {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 8px;
+  min-width: 200px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.22);
+  z-index: 2500;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.user-dropdown-header {
+  padding: 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+  margin-bottom: 8px;
+}
+
+.user-email {
+  font-size: 0.75rem;
+  color: #888;
+  margin: 0;
+}
+
+.user-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 9px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: #1a1a1a;
+  text-decoration: none;
+}
+
+.user-option-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.logout-btn {
+  color: #d32f2f;
+}
+
+.logout-btn:hover {
+  background: #fdeaea;
 }
 
 /* Transition */
