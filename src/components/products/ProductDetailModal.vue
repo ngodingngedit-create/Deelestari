@@ -30,13 +30,30 @@ watch(() => props.isOpen, (newVal) => {
   }
 });
 
+const activePrice = computed(() => {
+  if (selectedVariantId.value) {
+    const variant = props.product.variants?.find(v => v.id === selectedVariantId.value);
+    if (variant) return parseFloat(variant.price);
+  }
+  return props.product.price;
+});
+
+const activeStock = computed(() => {
+  if (selectedVariantId.value) {
+    const variant = props.product.variants?.find(v => v.id === selectedVariantId.value);
+    if (variant) return (variant.stock_qty !== undefined ? variant.stock_qty : variant.stock) || 0;
+  }
+  return props.product.stock;
+});
+
 const formatRupiah = (amount) => {
+  if (!amount) return 'Rp 0';
   return 'Rp ' + amount.toLocaleString('id-ID');
 };
 
 const updateQuantity = (change) => {
   const newQty = quantity.value + change;
-  if (newQty >= 0 && newQty <= (props.product.stock || 99)) {
+  if (newQty >= 0 && newQty <= (activeStock.value || 99)) {
     quantity.value = newQty;
   }
 };
@@ -46,7 +63,7 @@ const addToCart = () => {
     const variant = props.product.variants?.find(v => v.id === selectedVariantId.value);
     const productWithVariant = {
         ...props.product,
-        variant_name: variant ? (variant.variant_name || variant.name) : null
+        variant_name: variant ? (variant.varian_name || variant.variant_name || variant.name) : null
     };
     store.addToCart(productWithVariant, quantity.value, selectedVariantId.value);
     emit('close');
@@ -54,7 +71,7 @@ const addToCart = () => {
 };
 
 const totalPrice = computed(() => {
-  return props.product.price * quantity.value;
+  return activePrice.value * quantity.value;
 });
 </script>
 
@@ -102,9 +119,9 @@ const totalPrice = computed(() => {
           <div class="product-author">{{ product.author }}</div>
           
           <div class="product-price-section">
-            <div class="price-main">{{ formatRupiah(product.price) }}</div>
+            <div class="price-main">{{ formatRupiah(activePrice) }}</div>
             <div v-if="product.originalPrice" class="price-original">{{ formatRupiah(product.originalPrice) }}</div>
-            <div v-if="product.originalPrice" class="discount-pill">{{ t('save') }} {{ Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) }}%</div>
+            <div v-if="product.originalPrice" class="discount-pill">{{ t('save') }} {{ Math.round(((product.originalPrice - activePrice) / product.originalPrice) * 100) }}%</div>
           </div>
           
           <div class="product-description-section">
@@ -122,7 +139,7 @@ const totalPrice = computed(() => {
                 :class="{ active: selectedVariantId === variant.id }"
                 @click="selectedVariantId = variant.id"
               >
-                {{ variant.variant_name || variant.name }}
+                {{ variant.varian_name || variant.variant_name || variant.name }}
               </button>
             </div>
           </div>
@@ -131,12 +148,12 @@ const totalPrice = computed(() => {
             <div class="qty-section">
               <div class="qty-header">
                 <h4 class="section-label">{{ t('quantity') }}</h4>
-                <span class="stock-label">{{ t('stock') }}: {{ product.stock }}</span>
+                <span class="stock-label">{{ t('stock') }}: {{ activeStock }}</span>
               </div>
               <div class="qty-control big">
                 <button class="qty-btn" @click="updateQuantity(-1)" :disabled="quantity <= 0">-</button>
                 <span class="qty-val">{{ quantity }}</span>
-                <button class="qty-btn" @click="updateQuantity(1)" :disabled="quantity >= (product.stock || 99)">+</button>
+                <button class="qty-btn" @click="updateQuantity(1)" :disabled="quantity >= (activeStock || 99)">+</button>
               </div>
             </div>
             
