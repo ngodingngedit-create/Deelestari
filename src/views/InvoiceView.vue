@@ -72,6 +72,15 @@ const mapOrderData = async (data) => {
         };
     });
 
+    const subtotal = parseFloat(data.total_price || data.subtotal || 0);
+    const shipping = parseFloat(data.delivery_price || data.shipping || 0);
+    const discount = parseFloat(data.discount || 0);
+    const total = parseFloat(data.grandtotal || data.total || 0);
+    
+    // Calculate admin fee as the discrepancy if not explicitly provided
+    // This handles cases where backend includes it in grandtotal but doesn't return it as a separate field
+    const adminFee = parseFloat(data.admin_fee) || (total - (subtotal + shipping - discount));
+
     return {
         id: data.invoice_no || data.id,
         date: data.created_at || data.created_date || data.date,
@@ -84,10 +93,11 @@ const mapOrderData = async (data) => {
             address: data.address?.address_detail || data.address?.alamat || '-',
             storeLocation: data.pickup?.location_name || data.customer?.storeLocation
         },
-        subtotal: parseFloat(data.total_price || data.subtotal || 0),
-        shipping: parseFloat(data.delivery_price || data.shipping || 0),
-        discount: parseFloat(data.discount || 0),
-        total: parseFloat(data.grandtotal || data.total || 0)
+        subtotal,
+        shipping,
+        adminFee: adminFee > 0 ? adminFee : 0,
+        discount,
+        total
     };
 };
 
@@ -208,6 +218,10 @@ onMounted(async () => {
         <div class="summary-row">
           <span>{{ t('totalOngkir') }}</span>
           <span>{{ formatRupiah(order.shipping) }}</span>
+        </div>
+        <div class="summary-row" v-if="order.adminFee > 0">
+          <span>Biaya Layanan</span>
+          <span>{{ formatRupiah(order.adminFee) }}</span>
         </div>
         <div class="summary-row" v-if="order.discount > 0">
           <span>Discount</span>

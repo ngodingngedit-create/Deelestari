@@ -13,26 +13,35 @@ const handleLogin = async () => {
     loading.value = true;
     error.value = '';
     
-    // Simulate API call to /api/login-auth
-    // In a real app, you'd use fetch or axios:
-    // const response = await fetch('/api/login-auth', { 
-    //   method: 'POST', 
-    //   body: JSON.stringify({ email: email.value, password: password.value }) 
-    // });
-    
-    setTimeout(() => {
-        if (email.value === 'deelest@gmail.com' && password.value === '12345678') {
-            store.login({
-                name: 'Dee Lestari',
+    try {
+        const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+        const response = await fetch(`${baseUrl}/api/login-auth`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
                 email: email.value,
-                avatar: 'https://deelestari.com/wp-content/uploads/2021/01/ManuskripPing-asli_800.jpg'
-            });
+                password: password.value
+            })
+        });
+
+        const responseData = await response.json().catch(() => ({}));
+
+        if (response.ok) {
+            // User info is in the 'data' property of the response
+            store.login(responseData.data, responseData.access_token);
             router.push('/dashboard');
         } else {
-            error.value = 'Email atau password salah. Silakan coba lagi.';
+            error.value = responseData.message || 'Email atau password salah. Silakan coba lagi.';
         }
+    } catch (err) {
+        error.value = 'Tidak dapat terhubung ke server. Silakan coba lagi nanti.';
+        console.error('Login error:', err);
+    } finally {
         loading.value = false;
-    }, 1000);
+    }
 };
 </script>
 
@@ -61,7 +70,7 @@ const handleLogin = async () => {
                 type="email" 
                 id="email" 
                 v-model="email" 
-                placeholder="deelest@gmail.com" 
+                placeholder="example@gmail.com" 
                 required
               />
             </div>

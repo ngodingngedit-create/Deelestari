@@ -3,6 +3,7 @@ import { t } from '../composables/useLanguage';
 
 export const store = reactive({
   user: null, // Track authenticated user
+  token: null, // Track access token
   cart: [],
   lastOrder: null,
   checkoutLoading: false,
@@ -13,27 +14,36 @@ export const store = reactive({
   },
 
   get isAuthenticated() {
-    return this.user !== null;
+    return this.user !== null && this.token !== null;
   },
 
-  login(userData) {
+  login(userData, token = null) {
     this.user = userData;
+    this.token = token;
     // Store in localStorage for persistence
     localStorage.setItem('user', JSON.stringify(userData));
+    if (token) {
+      localStorage.setItem('token', token);
+    }
   },
 
   logout() {
     this.user = null;
+    this.token = null;
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
   },
 
   initAuth() {
     const storedUser = localStorage.getItem('user');
+    const storedToken = localStorage.getItem('token');
     if (storedUser) {
       try {
         this.user = JSON.parse(storedUser);
+        this.token = storedToken;
       } catch (e) {
         this.user = null;
+        this.token = null;
       }
     }
   },

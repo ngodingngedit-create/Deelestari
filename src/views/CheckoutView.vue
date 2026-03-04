@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { store } from '../store';
 import { useLanguage } from '../composables/useLanguage';
@@ -17,7 +17,9 @@ const formData = ref({
   notes: '',
   storeLocation: '',
   provinceId: '0',
-  cityId: '0'
+  cityId: '0',
+  latitude: '',
+  longitude: ''
 });
 
 const selectedCourier = ref('Byteship');
@@ -43,8 +45,14 @@ const addressForm = ref({
   provinceId: '',
   cityName: '',
   zip: '',
-  detail: ''
+  detail: '',
+  latitude: '',
+  longitude: ''
 });
+
+// Map State
+let map = null;
+let marker = null;
 
 // Fetch all products to get admin_fee and other details
 onMounted(async () => {
@@ -91,6 +99,52 @@ const fetchCities = async (provinceId) => {
 const openAddressModal = () => {
   showAddressModal.value = true;
   fetchProvinces();
+  
+  // Initialize map after modal is rendered
+  nextTick(() => {
+    initMap();
+  });
+};
+
+const initMap = () => {
+  if (typeof window.L === 'undefined') {
+    console.warn('Leaflet not loaded yet');
+    return;
+  }
+
+  const defaultLat = addressForm.value.latitude || -6.200000;
+  const defaultLng = addressForm.value.longitude || 106.816666;
+
+  if (map) {
+    map.remove();
+  }
+
+  map = window.L.map('map-picker').setView([defaultLat, defaultLng], 13);
+
+  window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  marker = window.L.marker([defaultLat, defaultLng], {
+    draggable: true
+  }).addTo(map);
+
+  marker.on('dragend', function (event) {
+    const position = marker.getLatLng();
+    addressForm.value.latitude = position.lat.toFixed(6);
+    addressForm.value.longitude = position.lng.toFixed(6);
+  });
+
+  map.on('click', function (e) {
+    marker.setLatLng(e.latlng);
+    addressForm.value.latitude = e.latlng.lat.toFixed(6);
+    addressForm.value.longitude = e.latlng.lng.toFixed(6);
+  });
+
+  // Ensure map resizes correctly if modal layout fixes
+  setTimeout(() => {
+    map.invalidateSize();
+  }, 400);
 };
 
 const saveAddress = () => {
@@ -105,8 +159,32 @@ const saveAddress = () => {
   formData.value.zip = addressForm.value.zip;
   formData.value.provinceId = addressForm.value.provinceId || '0';
   formData.value.cityId = selectedCity ? selectedCity.id : '0';
+  formData.value.latitude = addressForm.value.latitude;
+  formData.value.longitude = addressForm.value.longitude;
   
   showAddressModal.value = false;
+  if (map) {
+    map.remove();
+    map = null;
+  }
+};
+
+const getCurrentLocation = () => {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        addressForm.value.latitude = position.coords.latitude.toFixed(6);
+        addressForm.value.longitude = position.coords.longitude.toFixed(6);
+        store.showNotification('Lokasi berhasil diambil', 'success');
+      },
+      (err) => {
+        console.error('Geolocation error:', err);
+        store.showNotification('Gagal mengambil lokasi. Silakan isi manual.', 'info');
+      }
+    );
+  } else {
+    store.showNotification('Browser Anda tidak mendukung lokasi', 'info');
+  }
 };
 
 const availableStores = computed(() => {
@@ -171,26 +249,41 @@ const fetchShippingRates = async () => {
     // Calculate total weight based on product data
     const totalWeight = enrichedCart.value.reduce((sum, item) => sum + (item.quantity * item.weight), 0);
 
-    const payload = {
-      origin_postal_code: "16519", // Updated as requested
-      destination_postal_code: formData.value.zip,
-      weight: totalWeight
-    };
-
-    const response = await fetch(`${baseUrl}/api/shipping/cek-ongkir`, {
+    const response = await fetch(`${baseUrl}/api/shipping/cek-all-ongkir`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        origin_postal_code: "10110",
+        destination_postal_code: formData.value.zip,
+        origin_latitude: -6.175392,
+        origin_longitude: 106.827153,
+        destination_latitude: parseFloat(formData.value.latitude) || -6.190000,
+        destination_longitude: parseFloat(formData.value.longitude) || 106.830000,
+        weight: totalWeight
+      })
     });
 
     const result = await response.json();
-    if (result.body && result.body.success) {
-      shippingRates.value = result.body.pricing || [];
+    if (result.success && result.rates) {
+      // Flatten rates from different categories: instant, same_day, regular
+      const allRates = [
+        ...(result.rates.instant || []),
+        ...(result.rates.same_day || []),
+        ...(result.rates.regular || [])
+      ].map(rate => ({
+        ...rate,
+        courier_name: rate.courier,
+        courier_service_name: rate.service,
+        price: rate.price,
+        duration: rate.etd
+      }));
+
+      shippingRates.value = allRates;
       if (shippingRates.value.length === 0) {
         store.showNotification('Tidak ada pilihan pengiriman tersedia untuk lokasi ini', 'info');
       }
     } else {
-      store.showNotification(result.body?.message || 'Gagal mengambil data ongkir', 'error');
+      store.showNotification(result.message || 'Gagal mengambil data ongkir', 'error');
     }
   } catch (err) {
     console.error('Error fetching shipping rates:', err);
@@ -262,8 +355,8 @@ const placeOrder = async () => {
         address_detail: formData.value.address,
         address_name: "Shipping Address",
         zipcode: formData.value.zip || "15147",
-        latitude: "",
-        longitude: "",
+        latitude: formData.value.latitude,
+        longitude: formData.value.longitude,
         nama_penerima: formData.value.fullName,
         phone: formData.value.phone,
         is_active: 1
@@ -366,6 +459,12 @@ const placeOrder = async () => {
                   </div>
                   <div class="address-placeholder" v-else @click="openAddressModal">
                     <p>Klik untuk memilih atau memasukkan alamat</p>
+                  </div>
+                  
+                  <div class="map-link-wrapper" v-if="formData.latitude && formData.longitude">
+                    <a :href="`https://www.google.com/maps?q=${formData.latitude},${formData.longitude}`" target="_blank" class="maps-direct-btn">
+                      <span class="map-icon">📍</span> Lihat di Google Maps
+                    </a>
                   </div>
                 </div>
 
@@ -561,6 +660,12 @@ const placeOrder = async () => {
             </div>
           </div>
 
+          <div class="map-picker-section">
+            <label>Tentukan Lokasi di Map <span class="required">*</span></label>
+            <div id="map-picker" class="map-container-el"></div>
+            <p class="map-hint">Geser pin atau klik di map untuk menentukan lokasi pengiriman</p>
+          </div>
+
           <div class="form-group">
             <label>Kode Pos</label>
             <input type="text" v-model="addressForm.zip" placeholder="Masukan Kode Pos">
@@ -569,6 +674,23 @@ const placeOrder = async () => {
           <div class="form-group">
             <label>Detail Alamat</label>
             <textarea v-model="addressForm.detail" placeholder="Kecamatan, Desa, No. Rumah, dll" rows="3"></textarea>
+          </div>
+
+          <div class="form-row coordinates-row">
+            <div class="form-group">
+              <label>Latitude <span class="required" v-if="selectedCourier === 'Byteship'">*</span></label>
+              <input type="text" v-model="addressForm.latitude" placeholder="-6.XXXXXX">
+            </div>
+            <div class="form-group">
+              <label>Longitude <span class="required" v-if="selectedCourier === 'Byteship'">*</span></label>
+              <input type="text" v-model="addressForm.longitude" placeholder="106.XXXXXX">
+            </div>
+          </div>
+          
+          <div class="location-action">
+            <button type="button" class="location-btn" @click="getCurrentLocation">
+              <span class="gps-icon">⌖</span> Gunakan Lokasi Saat Ini
+            </button>
           </div>
 
           <p class="disclaimer">Periksa kembali alamat yang Anda masukkan untuk memastikan tidak ada kesalahan.</p>
@@ -1333,5 +1455,103 @@ input:focus, textarea:focus {
   .modal-body {
     padding: 15px;
   }
+}
+
+.map-link-wrapper {
+  margin-top: 10px;
+}
+
+.maps-direct-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #333;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 50px;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid #444;
+  transition: all 0.3s;
+}
+
+.maps-direct-btn:hover {
+  background: #444;
+  border-color: var(--secondary-accent, #9e4d3d);
+  transform: translateY(-1px);
+}
+
+.coordinates-row {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  margin-top: 10px;
+}
+
+.location-action {
+  margin-top: 10px;
+  margin-bottom: 20px;
+}
+
+.location-btn {
+  background: transparent;
+  border: 1px solid #444;
+  color: #ccc;
+  padding: 8px 15px;
+  border-radius: 50px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.3s;
+}
+
+.location-btn:hover {
+  background: #333;
+  border-color: var(--secondary-accent, #9e4d3d);
+  color: #fff;
+}
+
+.gps-icon {
+  font-size: 1.1rem;
+}
+
+.map-picker-section {
+  margin-bottom: 20px;
+}
+
+.map-container-el {
+  height: 250px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #333;
+  margin-top: 8px;
+  z-index: 1;
+}
+
+.map-hint {
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: 6px;
+  font-style: italic;
+}
+
+.coordinates-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  margin-bottom: 15px;
+}
+
+.coordinates-row .form-group {
+  margin-bottom: 0;
 }
 </style>
