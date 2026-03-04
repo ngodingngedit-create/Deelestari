@@ -198,8 +198,9 @@ const totalPrice = computed(() => {
   border-radius: 16px;
   width: 100%;
   max-width: 900px;
+  max-height: 90vh; /* Ensure modal doesn't exceed viewport */
   position: relative;
-  overflow: hidden;
+  overflow-y: auto; /* Allow vertical scrolling */
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   transform: scale(0.9);
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -521,6 +522,21 @@ const totalPrice = computed(() => {
 }
 
 @media (max-width: 768px) {
+  .modal-overlay {
+    padding: 10px; /* Less padding on small screens */
+  }
+
+  .modal-content {
+    max-height: 95vh; /* More height on mobile */
+  }
+
+  .modal-close {
+    top: 15px;
+    right: 15px;
+    width: 32px;
+    height: 32px;
+  }
+
   .product-detail-grid {
     grid-template-columns: 1fr;
   }
@@ -530,11 +546,15 @@ const totalPrice = computed(() => {
   }
   
   .product-info-col {
-    padding: 25px;
+    padding: 20px;
   }
   
   .product-title {
-    font-size: 2rem;
+    font-size: 1.75rem;
+  }
+
+  .product-actions-container {
+    padding-bottom: env(safe-area-inset-bottom, 20px); /* Account for mobile browser bars if needed */
   }
 }
 </style>
