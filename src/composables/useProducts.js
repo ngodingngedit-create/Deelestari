@@ -17,13 +17,20 @@ export function useProducts() {
         try {
             const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
             let url = `${baseUrl}/api/product?page=${page}`;
-            if (creatorIdRef.value) {
-                if (Array.isArray(creatorIdRef.value)) {
-                    creatorIdRef.value.forEach(id => {
+
+            // Handle dynamic creator_id based on environment
+            let effectiveCreatorId = creatorIdRef.value;
+            if (baseUrl.includes('api.kolektix.com')) {
+                effectiveCreatorId = 129;
+            }
+
+            if (effectiveCreatorId) {
+                if (Array.isArray(effectiveCreatorId)) {
+                    effectiveCreatorId.forEach(id => {
                         url += `&creator_id[]=${id}`;
                     });
                 } else {
-                    url += `&creator_id=${creatorIdRef.value}`;
+                    url += `&creator_id=${effectiveCreatorId}`;
                 }
             }
             const response = await fetch(url);

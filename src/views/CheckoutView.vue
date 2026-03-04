@@ -58,7 +58,8 @@ let marker = null;
 onMounted(async () => {
   try {
     const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
-    const response = await fetch(`${baseUrl}/api/product?creator_id=48`);
+    const creatorId = baseUrl.includes('api.kolektix.com') ? 129 : 48;
+    const response = await fetch(`${baseUrl}/api/product?creator_id=${creatorId}`);
     const result = await response.json();
     allProducts.value = result.data || [];
   } catch (err) {
@@ -253,10 +254,10 @@ const fetchShippingRates = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        origin_postal_code: "10110",
+        origin_postal_code: "16519",
         destination_postal_code: formData.value.zip,
-        origin_latitude: -6.175392,
-        origin_longitude: 106.827153,
+        origin_latitude: -6.406675,
+        origin_longitude: 106.7684233,
         destination_latitude: parseFloat(formData.value.latitude) || -6.190000,
         destination_longitude: parseFloat(formData.value.longitude) || 106.830000,
         weight: totalWeight
@@ -326,7 +327,7 @@ const placeOrder = async () => {
       name_pemesan: formData.value.fullName,
       email_pemesan: formData.value.email,
       phone_pemesan: formData.value.phone,
-      creator_id: 6,
+      creator_id: baseUrl.includes('api.kolektix.com') ? 129 : 6,
       grandtotal: total.value,
       product: store.cart.map(item => {
         const prod = {
