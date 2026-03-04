@@ -206,10 +206,17 @@ const availableStores = computed(() => {
 const enrichedCart = computed(() => {
   return store.cart.map(item => {
     const product = allProducts.value.find(p => p.id == item.id);
+    let weight = product ? parseFloat(product.weight || 1000) : 1000;
+    
+    // Fallback to variant weight if top-level is 0
+    if (product && weight === 0 && product.product_varian && product.product_varian.length > 0) {
+      weight = parseFloat(product.product_varian[0].weight || 1000);
+    }
+
     return {
       ...item,
       admin_fee: product ? parseFloat(product.admin_fee || 0) : 0,
-      weight: product ? parseFloat(product.weight || 1000) : 1000
+      weight: weight
     };
   });
 });

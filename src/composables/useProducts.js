@@ -43,6 +43,18 @@ export function useProducts() {
                         ? item.product_image[0].image_url
                         : 'https://placehold.co/300x400/2a2a2a/FFF?text=No+Image';
 
+                    let price = parseFloat(item.price);
+                    let stock = item.qty;
+
+                    // If it has variants, use them for price and stock if top-level is 0
+                    if (item.product_varian && item.product_varian.length > 0) {
+                        if (price === 0) {
+                            price = parseFloat(item.product_varian[0].price);
+                        }
+                        // Total stock is sum of variant stocks
+                        stock = item.product_varian.reduce((sum, v) => sum + (v.stock_qty || 0), 0);
+                    }
+
                     return {
                         id: item.id,
                         title: item.product_name,
@@ -50,14 +62,14 @@ export function useProducts() {
                         category: 'fiksi', // Default or map if possible
                         categoryDisplay: 'Fiksi',
                         year: new Date(item.created_at).getFullYear(),
-                        price: parseFloat(item.price),
+                        price: price,
                         description: item.description.replace(/<[^>]*>/g, ''), // Strip HTML tags
                         image: imageUrl,
-                        originalPrice: item.discount > 0 ? parseFloat(item.price) + parseFloat(item.discount) : null,
-                        stock: item.qty,
+                        originalPrice: item.discount > 0 ? price + parseFloat(item.discount) : null,
+                        stock: stock,
                         slug: item.slug,
                         isPreorder: item.is_preorder === 1,
-                        variants: item.variants || []
+                        variants: item.product_varian || []
                     };
                 });
 
