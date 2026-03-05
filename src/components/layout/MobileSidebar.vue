@@ -30,12 +30,12 @@ const closeSidebar = () => {
 
       <div class="sidebar-content">
         <nav class="sidebar-nav">
-          <router-link to="/" class="nav-link" @click="closeSidebar">{{ t('beranda') || 'Beranda' }}</router-link>
-          <router-link to="/buku" class="nav-link" @click="closeSidebar">{{ t('buku') || 'Buku' }}</router-link>
+          <router-link to="/" class="nav-link" @click="closeSidebar" style="text-transform: capitalize;">{{ t('beranda') || 'Beranda' }}</router-link>
+          <router-link to="/produk" class="nav-link" @click="closeSidebar" style="text-transform: capitalize;">{{ t('produk') || 'Produk' }}</router-link>
           <router-link to="/kaizen-writing" class="nav-link" @click="closeSidebar">Kaizen Writing</router-link>
-          <router-link to="/musik" class="nav-link" @click="closeSidebar">{{ t('musik') || 'Musik' }}</router-link>
+          <router-link to="/musik" class="nav-link" @click="closeSidebar" style="text-transform: capitalize;">{{ t('musik') || 'Musik' }}</router-link>
           <router-link to="/blog" class="nav-link" @click="closeSidebar">Blog</router-link>
-          <router-link to="/bio" class="nav-link" @click="closeSidebar">{{ t('bio') || 'Bio' }}</router-link>
+          <router-link to="/bio" class="nav-link" @click="closeSidebar" style="text-transform: capitalize;">{{ t('bio') || 'Bio' }}</router-link>
         </nav>
 
       </div>

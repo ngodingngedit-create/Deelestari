@@ -2,12 +2,24 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useLanguage } from '../composables/useLanguage';
+import { useProducts } from '../composables/useProducts';
 
 const router = useRouter();
 const { t } = useLanguage();
 
 // Hero slider
-const featuredBooks = [
+const featuredBooks = ref([
+  {
+    id: 6,
+    title: 'T Shirt Official Supernova Dee Lestari',
+    subtitle: 'Official Merchandise',
+    category: 'Merchandise',
+    year: '2026',
+    desc: 'Temukan berbagai produk eksklusif dari Dee Lestari, mulai dari buku bertandatangan hingga merchandise spesial.',
+    bg: 'linear-gradient(135deg, #2c1e1e 0%, #4a3434 50%, #6b4c4c 100%)',
+    accent: '#e8c97a',
+    image: '', 
+  },
   {
     id: 1,
     title: 'Supernova',
@@ -63,7 +75,9 @@ const featuredBooks = [
     accent: '#d4956c',
     image: '/images/filosofikopi.jpeg',
   },
-];
+]);
+
+const { products, fetchProducts } = useProducts();
 
 const activeSlide = ref(0);
 let autoplayTimer = null;
@@ -74,18 +88,18 @@ const goToSlide = (index) => {
 };
 
 const nextSlide = () => {
-  activeSlide.value = (activeSlide.value + 1) % featuredBooks.length;
+  activeSlide.value = (activeSlide.value + 1) % featuredBooks.value.length;
   resetAutoplay();
 };
 
 const prevSlide = () => {
-  activeSlide.value = (activeSlide.value - 1 + featuredBooks.length) % featuredBooks.length;
+  activeSlide.value = (activeSlide.value - 1 + featuredBooks.value.length) % featuredBooks.value.length;
   resetAutoplay();
 };
 
 const startAutoplay = () => {
   autoplayTimer = setInterval(() => {
-    activeSlide.value = (activeSlide.value + 1) % featuredBooks.length;
+    activeSlide.value = (activeSlide.value + 1) % featuredBooks.value.length;
   }, 5000);
 };
 
@@ -94,8 +108,8 @@ const resetAutoplay = () => {
   startAutoplay();
 };
 
-const goToBuku = () => {
-  router.push('/buku');
+const goToProduk = () => {
+  router.push('/produk');
 };
 
 // Press quotes
@@ -114,9 +128,19 @@ const startQuoteRotation = () => {
   }, 4000);
 };
 
-onMounted(() => {
+onMounted(async () => {
   startAutoplay();
   startQuoteRotation();
+  
+  // Fetch products to get dynamic image for the first slide
+  await fetchProducts();
+  if (products.value.length > 0) {
+    // Try to find a product that matches the T-Shirt title or just take the first one
+    const merchProduct = products.value.find(p => p.title.toLowerCase().includes('t shirt') || p.title.toLowerCase().includes('supernova')) || products.value[0];
+    if (merchProduct && merchProduct.image) {
+      featuredBooks.value[0].image = merchProduct.image;
+    }
+  }
 });
 
 onUnmounted(() => {
@@ -144,15 +168,15 @@ onUnmounted(() => {
                 <span class="slide-badge" :style="{ color: book.accent, borderColor: book.accent }">
                   {{ book.category }} · {{ book.year }}
                 </span>
-                <h1 class="slide-title">{{ book.title }}</h1>
+                <h1 class="slide-title" @click="goToProduk" style="cursor: pointer;">{{ book.title }}</h1>
                 <p v-if="book.subtitle" class="slide-subtitle">{{ book.subtitle }}</p>
                 <p class="slide-desc">{{ book.desc }}</p>
                 <div class="slide-actions">
-                  <button class="btn-primary" @click="goToBuku">Lihat Koleksi Buku</button>
-                  <button class="btn-ghost" @click="goToBuku">Beli Sekarang</button>
+                  <button class="btn-primary" @click="goToProduk">Lihat Koleksi Buku</button>
+                  <button class="btn-ghost" @click="goToProduk">Beli Sekarang</button>
                 </div>
               </div>
-              <div class="slide-visual">
+              <div class="slide-visual" @click="goToProduk" style="cursor: pointer;">
                 <img v-if="book.image" :src="book.image" :alt="book.title" class="book-cover-img" />
                 <div v-else class="book-card-mock" :style="{ '--accent': book.accent }">
                   <span class="book-title-mock">{{ book.title }}</span>
@@ -296,7 +320,7 @@ onUnmounted(() => {
       <div class="section-inner cta-inner">
         <h2 class="cta-title">Temukan Karya Dee Lestari</h2>
         <p class="cta-desc">18 judul buku tersedia. Dari Supernova hingga Tanpa Rencana.</p>
-        <button class="btn-primary btn-large" @click="goToBuku">Lihat Semua Buku</button>
+        <button class="btn-primary btn-large" @click="goToProduk">Lihat Semua Buku</button>
       </div>
     </section>
 
@@ -886,9 +910,16 @@ onUnmounted(() => {
     padding: 0 1.5rem;
   }
 
-  .slide-visual { display: none; }
-
-  .slide-desc { max-width: 100%; }
+  .slide-visual { 
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
+  }
+  
+  .book-cover-img, .book-card-mock {
+    width: 140px;
+    height: 200px;
+  }
 
   .slide-actions { justify-content: center; }
 

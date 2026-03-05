@@ -119,6 +119,17 @@ onUnmounted(() => {
           </transition>
         </div>
 
+        <!-- Shop Button -->
+        <router-link to="/produk" class="action-btn shop-btn" aria-label="Shop">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+            <path d="M3 6h18"></path>
+            <path d="M16 10a4 4 0 0 1-8 0"></path>
+            <circle cx="9" cy="21" r="1"></circle>
+            <circle cx="20" cy="21" r="1"></circle>
+          </svg>
+        </router-link>
+
         <!-- Cart Toggle -->
         <button class="action-btn cart-toggle" aria-label="Cart" @click="$emit('toggle-cart')">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -365,5 +376,39 @@ onUnmounted(() => {
 .lang-pop-leave-to {
   opacity: 0;
   transform: translateY(-8px) scale(0.96);
+}
+.shop-btn {
+  margin-right: 5px;
+  color: var(--text-light, #1a1a1a); /* Adjust to match theme */
+}
+
+.action-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.site-header {
+  /* ... existing ... */
+}
+.shop-btn {
+  margin-right: 8px;
+  color: var(--text-light, #F4F1EC);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.shop-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--secondary-accent, #9e4d3d);
+}
+
+@media (max-width: 768px) {
+  .shop-btn {
+    display: none; /* Hide in mobile header if it's already in sidebar */
+  }
 }
 </style>

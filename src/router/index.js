@@ -13,8 +13,8 @@ const router = createRouter({
             component: BerandaView
         },
         {
-            path: '/buku',
-            name: 'buku',
+            path: '/produk',
+            name: 'produk',
             component: BukuView
         },
         {

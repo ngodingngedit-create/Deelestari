@@ -47,8 +47,26 @@ const addressForm = ref({
   zip: '',
   detail: '',
   latitude: '',
-  longitude: ''
+  longitude: '',
+  searchQuery: ''
 });
+
+const addressStep = ref(1); // 1: Search, 2: Pinpoint, 3: Details
+const searchInputRef = ref(null);
+let autocomplete = null;
+
+const nextAddressStep = () => {
+  if (addressStep.value < 3) addressStep.value++;
+  if (addressStep.value === 2) {
+    nextTick(() => initMap());
+  }
+};
+const prevAddressStep = () => {
+  if (addressStep.value > 1) addressStep.value--;
+  if (addressStep.value === 2) {
+    nextTick(() => initMap());
+  }
+};
 
 // Map State
 let map = null;
@@ -99,53 +117,67 @@ const fetchCities = async (provinceId) => {
 
 const openAddressModal = () => {
   showAddressModal.value = true;
+  addressStep.value = 1; // Reset to step 1
   fetchProvinces();
   
-  // Initialize map after modal is rendered
+  // Initialize Autocomplete in step 1
   nextTick(() => {
-    initMap();
+    initAutocomplete();
+  });
+};
+
+const initAutocomplete = () => {
+  if (!searchInputRef.value || !window.google) return;
+  
+  autocomplete = new google.maps.places.Autocomplete(searchInputRef.value, {
+    componentRestrictions: { country: 'id' },
+    fields: ['address_components', 'geometry', 'formatted_address'],
+  });
+
+  autocomplete.addListener('place_changed', () => {
+    const place = autocomplete.getPlace();
+    if (!place.geometry || !place.geometry.location) return;
+
+    addressForm.value.latitude = place.geometry.location.lat().toFixed(6);
+    addressForm.value.longitude = place.geometry.location.lng().toFixed(6);
+    addressForm.value.searchQuery = place.formatted_address;
+    
+    // Auto proceed to step 2 after selecting place
+    nextAddressStep();
   });
 };
 
 const initMap = () => {
-  if (typeof window.L === 'undefined') {
-    console.warn('Leaflet not loaded yet');
+  if (typeof window.google === 'undefined') {
+    console.warn('Google Maps not loaded yet');
     return;
   }
 
-  const defaultLat = addressForm.value.latitude || -6.200000;
-  const defaultLng = addressForm.value.longitude || 106.816666;
+  try {
+    const defaultLat = parseFloat(addressForm.value.latitude) || -6.2088;
+    const defaultLng = parseFloat(addressForm.value.longitude) || 106.8456;
+    const mapContainer = document.getElementById('map-picker');
+    
+    if (!mapContainer) return;
 
-  if (map) {
-    map.remove();
+    map = new google.maps.Map(mapContainer, {
+      center: { lat: defaultLat, lng: defaultLng },
+      zoom: 17,
+      mapId: import.meta.env.VITE_GOOGLE_MAP_ID || '795838f77e7bb079c78f5aac',
+      disableDefaultUI: true,
+      zoomControl: true,
+    });
+
+    // In Google Maps pinpoint mode, we just listen to camera movement
+    map.addListener('center_changed', () => {
+      const center = map.getCenter();
+      addressForm.value.latitude = center.lat().toFixed(6);
+      addressForm.value.longitude = center.lng().toFixed(6);
+    });
+
+  } catch (err) {
+    console.error('Map init error:', err);
   }
-
-  map = window.L.map('map-picker').setView([defaultLat, defaultLng], 13);
-
-  window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors'
-  }).addTo(map);
-
-  marker = window.L.marker([defaultLat, defaultLng], {
-    draggable: true
-  }).addTo(map);
-
-  marker.on('dragend', function (event) {
-    const position = marker.getLatLng();
-    addressForm.value.latitude = position.lat.toFixed(6);
-    addressForm.value.longitude = position.lng.toFixed(6);
-  });
-
-  map.on('click', function (e) {
-    marker.setLatLng(e.latlng);
-    addressForm.value.latitude = e.latlng.lat.toFixed(6);
-    addressForm.value.longitude = e.latlng.lng.toFixed(6);
-  });
-
-  // Ensure map resizes correctly if modal layout fixes
-  setTimeout(() => {
-    map.invalidateSize();
-  }, 400);
 };
 
 const saveAddress = () => {
@@ -164,10 +196,10 @@ const saveAddress = () => {
   formData.value.longitude = addressForm.value.longitude;
   
   showAddressModal.value = false;
-  if (map) {
-    map.remove();
-    map = null;
-  }
+  map = null;
+  
+  // Auto-trigger shipping rates after saving address
+  fetchShippingRates();
 };
 
 const getCurrentLocation = () => {
@@ -176,6 +208,11 @@ const getCurrentLocation = () => {
       (position) => {
         addressForm.value.latitude = position.coords.latitude.toFixed(6);
         addressForm.value.longitude = position.coords.longitude.toFixed(6);
+        
+        if (map && addressStep.value === 2) {
+          map.panTo({ lat: position.coords.latitude, lng: position.coords.longitude });
+        }
+        
         store.showNotification('Lokasi berhasil diambil', 'success');
       },
       (err) => {
@@ -369,10 +406,10 @@ const placeOrder = async () => {
         phone: formData.value.phone,
         is_active: 1
       },
-      success_redirect_url: `${window.location.origin}/merch-invoice/{invoice_merch}`,
-      failure_redirect_url: `${window.location.origin}/checkout`,
+      success_redirect_url: `https://store.deelestari.com/merch-invoice/{invoice_merch}`,
+      failure_redirect_url: `https://store.deelestari.com/checkout`,
       is_microsite: 1,
-      microsite_url: window.location.origin
+      microsite_url: 'https://store.deelestari.com'
     };
 
     const response = await fetch(`${baseUrl}/api/order-product`, {
@@ -476,38 +513,23 @@ const placeOrder = async () => {
                   </div>
                 </div>
 
-                <!-- Courier Selection (Byteship API) -->
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>Penyedia Kurir <span class="required">*</span></label>
-                    <div class="custom-select-wrapper">
-                      <select v-model="selectedCourier" class="custom-select" required>
-                        <option value="Byteship">Byteship</option>
-                      </select>
-                      <div class="select-arrow"></div>
-                    </div>
-                  </div>
-                  <div class="form-group">
+                <div class="form-group shipping-service-full">
                     <label>Servis Pengiriman <span class="required">*</span></label>
                     <div class="flex-row-action">
                       <div class="custom-select-wrapper flex-grow">
                         <select v-model="selectedRate" class="custom-select" required :disabled="shippingRates.length === 0">
-                          <option :value="null" disabled>{{ shippingRates.length > 0 ? 'Pilih Servis' : 'Klik Cek Ongkir Dulu' }}</option>
+                          <option :value="null" disabled>{{ shippingRates.length > 0 ? 'Pilih Servis' : (isCheckingOngkir ? 'Sedang mengecek ongkir...' : 'Silakan pilih alamat terlebih dahulu') }}</option>
                           <option v-for="rate in shippingRates" :key="rate.courier_service_code" :value="rate">
                             {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
                           </option>
                         </select>
                         <div class="select-arrow"></div>
                       </div>
-                      <button type="button" class="btn-check-ongkir" @click="fetchShippingRates" :disabled="isCheckingOngkir">
-                         {{ isCheckingOngkir ? 'Wait...' : 'Cek Ongkir' }}
-                      </button>
                     </div>
                     <p v-if="selectedRate" class="shipping-info-text">
                       {{ selectedRate.description }} (Estimasi: {{ selectedRate.duration }})
                     </p>
                   </div>
-                </div>
               </form>
             </div>
           </section>
@@ -630,82 +652,132 @@ const placeOrder = async () => {
         </div>
         
         <div class="modal-body">
-          <div class="form-group">
-            <label>Nama Penerima</label>
-            <input type="text" v-model="addressForm.recipientName" placeholder="Masukan Nama Penerima">
+    <!-- Address Modal Redesign -->
+    <div class="modal-overlay" v-if="showAddressModal" @click.self="showAddressModal = false">
+      <div class="address-modal multi-step">
+        <div class="modal-header">
+          <div class="header-main">
+             <button v-if="addressStep > 1" class="back-modal" @click="prevAddressStep">←</button>
+             <h3>Tambah Alamat Baru</h3>
           </div>
+          <button class="close-modal" @click="showAddressModal = false">×</button>
+        </div>
 
-          <div class="form-group">
-            <label>Nama Alamat</label>
-            <input type="text" v-model="addressForm.addressLabel" placeholder="Rumah, Kantor, ...">
+        <!-- Step Indicator -->
+        <div class="step-indicator">
+          <div class="step-item" :class="{ active: addressStep >= 1, done: addressStep > 1 }">
+             <span class="step-num">1</span>
+             <span class="step-label">Cari Lokasi</span>
           </div>
-
-          <div class="form-group">
-            <label>No. Telp</label>
-            <input type="text" v-model="addressForm.phone" placeholder="08XX XXXX XXXX">
+          <div class="step-line"></div>
+          <div class="step-item" :class="{ active: addressStep >= 2, done: addressStep > 2 }">
+             <span class="step-num">2</span>
+             <span class="step-label">Pinpoint</span>
           </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>Provinsi</label>
-              <div class="custom-select-wrapper">
-                <select v-model="addressForm.provinceId" @change="fetchCities(addressForm.provinceId)" class="custom-select">
-                  <option value="" disabled>Pilih Provinsi</option>
-                  <option v-for="prov in provinces" :key="prov.id" :value="prov.id">{{ prov.name }}</option>
-                </select>
-                <div class="select-arrow"></div>
-              </div>
+          <div class="step-line"></div>
+          <div class="step-item" :class="{ active: addressStep >= 3 }">
+             <span class="step-num">3</span>
+             <span class="step-label">Detail</span>
+          </div>
+        </div>
+        
+        <div class="modal-body">
+          <!-- STEP 1: Search -->
+          <div v-if="addressStep === 1" class="step-content search-step">
+            <h4 class="step-title">Di mana lokasi tujuan pengirimanmu?</h4>
+            <div class="search-input-wrapper">
+               <input type="text" ref="searchInputRef" v-model="addressForm.searchQuery" placeholder="Tulis nama jalan / gedung / perumahan" @keyup.enter="nextAddressStep">
+               <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                 <circle cx="11" cy="11" r="8"></circle>
+                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+               </svg>
             </div>
-            <div class="form-group">
-              <label>Kota</label>
-              <div class="custom-select-wrapper">
-                <select v-model="addressForm.cityName" class="custom-select" :disabled="!addressForm.provinceId">
-                  <option value="" disabled>Pilih Kota</option>
-                  <option v-for="city in cities" :key="city.id" :value="city.name">{{ city.name }}</option>
-                </select>
-                <div class="select-arrow"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="map-picker-section">
-            <label>Tentukan Lokasi di Map <span class="required">*</span></label>
-            <div id="map-picker" class="map-container-el"></div>
-            <p class="map-hint">Geser pin atau klik di map untuk menentukan lokasi pengiriman</p>
-          </div>
-
-          <div class="form-group">
-            <label>Kode Pos</label>
-            <input type="text" v-model="addressForm.zip" placeholder="Masukan Kode Pos">
-          </div>
-
-          <div class="form-group">
-            <label>Detail Alamat</label>
-            <textarea v-model="addressForm.detail" placeholder="Kecamatan, Desa, No. Rumah, dll" rows="3"></textarea>
-          </div>
-
-          <div class="form-row coordinates-row">
-            <div class="form-group">
-              <label>Latitude <span class="required" v-if="selectedCourier === 'Byteship'">*</span></label>
-              <input type="text" v-model="addressForm.latitude" placeholder="-6.XXXXXX">
-            </div>
-            <div class="form-group">
-              <label>Longitude <span class="required" v-if="selectedCourier === 'Byteship'">*</span></label>
-              <input type="text" v-model="addressForm.longitude" placeholder="106.XXXXXX">
-            </div>
-          </div>
-          
-          <div class="location-action">
-            <button type="button" class="location-btn" @click="getCurrentLocation">
-              <span class="gps-icon">⌖</span> Gunakan Lokasi Saat Ini
+            
+            <button type="button" class="use-current-location-btn" @click="getCurrentLocation">
+               <span class="gps-icon">⌖</span> Gunakan Lokasi Saat Ini
             </button>
+            
+            <div class="step-actions">
+               <button class="primary-step-btn" @click="nextAddressStep">Pilih & Lanjut Pinpoint</button>
+            </div>
           </div>
 
-          <p class="disclaimer">Periksa kembali alamat yang Anda masukkan untuk memastikan tidak ada kesalahan.</p>
-          
-          <button class="save-address-btn" @click="saveAddress">
-            <span class="check-icon">✓</span> Simpan Alamat
-          </button>
+          <!-- STEP 2: Map Pinpoint -->
+          <div v-if="addressStep === 2" class="step-content map-step">
+             <h4 class="step-title">Tentukan pinpoint lokasi</h4>
+             <div class="map-picker-section">
+                <div id="map-picker" class="map-container-el"></div>
+                <div class="map-center-pin">📍</div>
+             </div>
+             <p class="map-hint">Geser peta untuk memindahkan pin tepat di depan pintu masuk!</p>
+             
+             <div class="step-actions">
+                <button class="primary-step-btn" @click="() => { nextAddressStep(); fetchProvinces(); }">Pilih Lokasi & Lanjut Isi Alamat</button>
+             </div>
+          </div>
+
+          <!-- STEP 3: Detail Form -->
+          <div v-if="addressStep === 3" class="step-content details-step">
+             <h4 class="step-title">Lengkapi detail alamat</h4>
+             
+             <!-- field order as requested: 1. Nama Alamat, 2. Nama Penerima, 3. No Telp, 4. Provinsi & Kota, 5. Kode Pos, 6. Detail -->
+             <div class="form-group">
+               <label>Nama Alamat</label>
+               <input type="text" v-model="addressForm.addressLabel" placeholder="Rumah, Kantor, ...">
+             </div>
+
+             <div class="form-group">
+               <label>Nama Penerima</label>
+               <input type="text" v-model="addressForm.recipientName" placeholder="Masukan Nama Penerima">
+             </div>
+
+             <div class="form-group">
+               <label>No. Telp</label>
+               <input type="text" v-model="addressForm.phone" placeholder="08XX XXXX XXXX">
+             </div>
+
+             <div class="form-row">
+               <div class="form-group">
+                 <label>Provinsi</label>
+                 <div class="custom-select-wrapper">
+                   <select v-model="addressForm.provinceId" @change="fetchCities(addressForm.provinceId)" class="custom-select">
+                     <option value="" disabled>Pilih Provinsi</option>
+                     <option v-for="prov in provinces" :key="prov.id" :value="prov.id">{{ prov.name }}</option>
+                   </select>
+                   <div class="select-arrow"></div>
+                 </div>
+               </div>
+               <div class="form-group">
+                 <label>Kota</label>
+                 <div class="custom-select-wrapper">
+                   <select v-model="addressForm.cityName" class="custom-select" :disabled="!addressForm.provinceId">
+                     <option value="" disabled>Pilih Kota</option>
+                     <option v-for="city in cities" :key="city.id" :value="city.name">{{ city.name }}</option>
+                   </select>
+                   <div class="select-arrow"></div>
+                 </div>
+               </div>
+             </div>
+
+             <div class="form-group">
+               <label>Kode Pos</label>
+               <input type="text" v-model="addressForm.zip" placeholder="Masukan Kode Pos">
+             </div>
+
+             <div class="form-group">
+               <label>Detail Alamat / Catatan Kurir</label>
+               <textarea v-model="addressForm.detail" placeholder="Kecamatan, Desa, No. Rumah, Nama Jalan, dll" rows="3"></textarea>
+             </div>
+
+             <div class="step-actions">
+                <button class="save-address-btn" @click="saveAddress">
+                  <span class="check-icon">✓</span> Simpan Alamat
+                </button>
+             </div>
+          </div>
+        </div>
+      </div>
+    </div>
         </div>
       </div>
     </div>
@@ -779,6 +851,11 @@ const placeOrder = async () => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
+}
+
+.shipping-service-full {
+  grid-column: span 2;
+  margin-top: 15px;
 }
 
 label {
@@ -1561,5 +1638,218 @@ input:focus, textarea:focus {
 
 .coordinates-row .form-group {
   margin-bottom: 0;
+}
+/* Multi-step Modal Styles */
+.address-modal.multi-step {
+  width: 95%;
+  max-width: 600px;
+  background: #222;
+  border-radius: 16px;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  padding: 20px 25px;
+  border-bottom: 1px solid #333;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-main {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.back-modal {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 5px;
+  line-height: 1;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.2rem;
+}
+
+.step-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 25px;
+  background: #2a2a2a;
+  gap: 10px;
+}
+
+.step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+}
+
+.step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #444;
+  color: #888;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 2px solid transparent;
+  transition: all 0.3s;
+}
+
+.step-label {
+  font-size: 0.7rem;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.3s;
+}
+
+.step-line {
+  height: 2px;
+  background: #444;
+  flex: 0.5;
+  margin-top: -15px;
+}
+
+.step-item.active .step-num {
+  background: rgba(158, 77, 61, 0.2);
+  color: #9e4d3d;
+  border-color: #9e4d3d;
+}
+
+.step-item.active .step-label {
+  color: #9e4d3d;
+}
+
+.step-item.done .step-num {
+  background: #9e4d3d;
+  color: #fff;
+}
+
+.step-item.done .step-label {
+  color: #fff;
+}
+
+.step-content {
+  padding: 25px;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.step-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.1rem;
+  margin-bottom: 20px;
+  color: #fff;
+}
+
+.search-input-wrapper {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+}
+
+.search-input-wrapper input {
+  padding-left: 45px;
+}
+
+.use-current-location-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid #444;
+  color: #fff;
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s;
+  margin-bottom: 10px;
+}
+
+.use-current-location-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #666;
+}
+
+.step-actions {
+  margin-top: auto;
+  padding-top: 20px;
+}
+
+.primary-step-btn {
+  width: 100%;
+  background: #9e4d3d;
+  color: #fff;
+  border: none;
+  padding: 14px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.primary-step-btn:hover {
+  background: #b85a47;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(158, 77, 61, 0.3);
+}
+
+.map-picker-section {
+  position: relative;
+  flex-grow: 1;
+  min-height: 250px;
+}
+
+.map-center-pin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  font-size: 2rem;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.map-hint {
+  font-size: 0.85rem;
+  color: #888;
+  text-align: center;
+  margin: 10px 0;
+}
+
+@media (max-width: 768px) {
+  .checkout-layout {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
