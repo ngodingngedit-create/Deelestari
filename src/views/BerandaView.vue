@@ -19,6 +19,7 @@ const featuredBooks = ref([
     bg: 'linear-gradient(135deg, #2c1e1e 0%, #4a3434 50%, #6b4c4c 100%)',
     accent: '#e8c97a',
     image: '', 
+    buttonLabel: 'Lihat Koleksi Merchandise',
   },
   {
     id: 1,
@@ -30,6 +31,7 @@ const featuredBooks = ref([
     bg: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
     accent: '#4a90d9',
     image: '/images/supernova.jpeg',
+    buttonLabel: 'Lihat Koleksi Buku',
   },
   {
     id: 2,
@@ -41,6 +43,7 @@ const featuredBooks = ref([
     bg: 'linear-gradient(135deg, #2c2c2c 0%, #3d3d3d 100%)',
     accent: '#e8c97a',
     image: '/images/perahukertas.jpeg',
+    buttonLabel: 'Lihat Koleksi Buku',
   },
   {
     id: 3,
@@ -52,6 +55,7 @@ const featuredBooks = ref([
     bg: 'linear-gradient(135deg, #0d1f0d 0%, #1a2f1a 50%, #2d4a2d 100%)',
     accent: '#7ec87e',
     image: '/images/aromakarsa.jpeg',
+    buttonLabel: 'Lihat Koleksi Buku',
   },
   {
     id: 4,
@@ -63,6 +67,7 @@ const featuredBooks = ref([
     bg: 'linear-gradient(135deg, #1c2333 0%, #2c3e50 100%)',
     accent: '#a78bfa',
     image: '/images/rapijali.jpeg',
+    buttonLabel: 'Lihat Koleksi Buku',
   },
   {
     id: 5,
@@ -74,6 +79,7 @@ const featuredBooks = ref([
     bg: 'linear-gradient(135deg, #2d1b0e 0%, #4a2f1a 50%, #6b4226 100%)',
     accent: '#d4956c',
     image: '/images/filosofikopi.jpeg',
+    buttonLabel: 'Lihat Koleksi Buku',
   },
 ]);
 
@@ -172,7 +178,7 @@ onUnmounted(() => {
                 <p v-if="book.subtitle" class="slide-subtitle">{{ book.subtitle }}</p>
                 <p class="slide-desc">{{ book.desc }}</p>
                 <div class="slide-actions">
-                  <button class="btn-primary" @click="goToProduk">Lihat Koleksi Buku</button>
+                  <button class="btn-primary" @click="goToProduk">{{ book.buttonLabel || 'Lihat Koleksi Buku' }}</button>
                   <button class="btn-ghost" @click="goToProduk">Beli Sekarang</button>
                 </div>
               </div>

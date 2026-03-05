@@ -7,6 +7,9 @@ import { useLanguage } from '../composables/useLanguage';
 const router = useRouter();
 const { t } = useLanguage();
 
+const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyBxZekg89Ut1U72fFpQldJAenvgTy197As';
+const googleMapId = import.meta.env.VITE_GOOGLE_MAP_ID || '795838f77e7bb079c78f5aac';
+
 const formData = ref({
   fullName: '',
   email: '',
@@ -52,25 +55,33 @@ const addressForm = ref({
 });
 
 const addressStep = ref(1); // 1: Search, 2: Pinpoint, 3: Details
+// Map State
 const searchInputRef = ref(null);
+const mapContainerRef = ref(null);
 let autocomplete = null;
+let map = null;
+let marker = null;
+const predictions = ref([]);
+const isSearching = ref(false);
+let autocompleteService = null;
+let geocoder = null;
 
 const nextAddressStep = () => {
   if (addressStep.value < 3) addressStep.value++;
   if (addressStep.value === 2) {
-    nextTick(() => initMap());
+    nextTick(() => {
+      initMap();
+    });
   }
 };
 const prevAddressStep = () => {
   if (addressStep.value > 1) addressStep.value--;
   if (addressStep.value === 2) {
-    nextTick(() => initMap());
+    nextTick(() => {
+      initMap();
+    });
   }
 };
-
-// Map State
-let map = null;
-let marker = null;
 
 // Fetch all products to get admin_fee and other details
 onMounted(async () => {
@@ -119,65 +130,158 @@ const openAddressModal = () => {
   showAddressModal.value = true;
   addressStep.value = 1; // Reset to step 1
   fetchProvinces();
-  
-  // Initialize Autocomplete in step 1
-  nextTick(() => {
-    initAutocomplete();
-  });
+  initServices();
 };
 
-const initAutocomplete = () => {
-  if (!searchInputRef.value || !window.google) return;
-  
-  autocomplete = new google.maps.places.Autocomplete(searchInputRef.value, {
-    componentRestrictions: { country: 'id' },
-    fields: ['address_components', 'geometry', 'formatted_address'],
-  });
-
-  autocomplete.addListener('place_changed', () => {
-    const place = autocomplete.getPlace();
-    if (!place.geometry || !place.geometry.location) return;
-
-    addressForm.value.latitude = place.geometry.location.lat().toFixed(6);
-    addressForm.value.longitude = place.geometry.location.lng().toFixed(6);
-    addressForm.value.searchQuery = place.formatted_address;
-    
-    // Auto proceed to step 2 after selecting place
-    nextAddressStep();
-  });
+const initServices = () => {
+  if (window.google && window.google.maps) {
+    if (!autocompleteService) autocompleteService = new google.maps.places.AutocompleteService();
+    if (!geocoder) geocoder = new google.maps.Geocoder();
+  } else {
+    setTimeout(initServices, 500);
+  }
 };
 
-const initMap = () => {
-  if (typeof window.google === 'undefined') {
-    console.warn('Google Maps not loaded yet');
+const onSearchInput = () => {
+  if (!addressForm.value.searchQuery || addressForm.value.searchQuery.length < 3) {
+    predictions.value = [];
     return;
   }
+  
+  if (!autocompleteService) return;
 
-  try {
-    const defaultLat = parseFloat(addressForm.value.latitude) || -6.2088;
-    const defaultLng = parseFloat(addressForm.value.longitude) || 106.8456;
-    const mapContainer = document.getElementById('map-picker');
+  isSearching.value = true;
+  autocompleteService.getPlacePredictions({
+    input: addressForm.value.searchQuery,
+    componentRestrictions: { country: 'id' }
+  }, (results, status) => {
+    isSearching.value = false;
+    if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+      predictions.value = results;
+    } else {
+      predictions.value = [];
+    }
+  });
+};
+
+const selectPrediction = (prediction) => {
+  if (!geocoder) return;
+
+  addressForm.value.searchQuery = prediction.description;
+  predictions.value = [];
+
+  geocoder.geocode({ placeId: prediction.place_id }, async (results, status) => {
+    if (status === google.maps.GeocoderStatus.OK && results[0]) {
+      const place = results[0];
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+      
+      addressForm.value.latitude = lat.toFixed(6);
+      addressForm.value.longitude = lng.toFixed(6);
+      
+      // Extract Components
+      let gProvince = '';
+      let gCity = '';
+      let gZip = '';
+
+      if (place.address_components) {
+        for (const component of place.address_components) {
+          const types = component.types;
+          if (types.includes('postal_code')) {
+            gZip = component.long_name;
+          } else if (types.includes('administrative_area_level_1')) {
+            gProvince = component.long_name;
+          } else if (types.includes('administrative_area_level_2')) {
+            gCity = component.long_name;
+          }
+        }
+      }
+
+      addressForm.value.zip = gZip;
+      const cleanCity = gCity.replace(/^(Kota|Kabupaten)\s+/i, '');
+
+      // Auto-match Province and City
+      if (provinces.value.length === 0) await fetchProvinces();
+      
+      const matchedProv = provinces.value.find(p => 
+        p.name.toLowerCase().includes(gProvince.toLowerCase()) || 
+        gProvince.toLowerCase().includes(p.name.toLowerCase())
+      );
+      
+      if (matchedProv) {
+        addressForm.value.provinceId = matchedProv.id;
+        await fetchCities(matchedProv.id);
+        
+        const matchedCity = cities.value.find(c => 
+          c.name.toLowerCase().includes(cleanCity.toLowerCase()) || 
+          cleanCity.toLowerCase().includes(c.name.toLowerCase())
+        );
+        
+        if (matchedCity) {
+          addressForm.value.cityName = matchedCity.name;
+        }
+      }
+      
+      nextAddressStep();
+    }
+  });
+};
+
+// Autocomplete initialized via Service manually
+
+const initMap = () => {
+  if (!mapContainerRef.value) return;
+  
+  const center = { 
+    lat: parseFloat(addressForm.value.latitude) || -6.2088, 
+    lng: parseFloat(addressForm.value.longitude) || 106.8456 
+  };
+
+  map = new google.maps.Map(mapContainerRef.value, {
+    center,
+    zoom: 17,
+    mapId: googleMapId,
+    disableDefaultUI: true,
+    zoomControl: true,
+  });
+
+  marker = new google.maps.Marker({
+    position: center,
+    map,
+    draggable: true,
+    animation: google.maps.Animation.DROP
+  });
+
+  marker.addListener('dragend', () => {
+    const pos = marker.getPosition();
+    addressForm.value.latitude = pos.lat().toFixed(6);
+    addressForm.value.longitude = pos.lng().toFixed(6);
     
-    if (!mapContainer) return;
+    // Reverse Geocode to update Zip/City/Province if pinned manually
+    if (geocoder) {
+      geocoder.geocode({ location: pos }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+          const place = results[0];
+          let gProvince = '';
+          let gCity = '';
+          let gZip = '';
+          for (const component of place.address_components) {
+            const types = component.types;
+            if (types.includes('postal_code')) gZip = component.long_name;
+            else if (types.includes('administrative_area_level_1')) gProvince = component.long_name;
+            else if (types.includes('administrative_area_level_2')) gCity = component.long_name;
+          }
+          if (gZip) addressForm.value.zip = gZip;
+          // Note: Province/City matching happens automatically if needed, 
+          // but we keep the current one to avoid flickering unless major change
+        }
+      });
+    }
+  });
 
-    map = new google.maps.Map(mapContainer, {
-      center: { lat: defaultLat, lng: defaultLng },
-      zoom: 17,
-      mapId: import.meta.env.VITE_GOOGLE_MAP_ID || '795838f77e7bb079c78f5aac',
-      disableDefaultUI: true,
-      zoomControl: true,
-    });
-
-    // In Google Maps pinpoint mode, we just listen to camera movement
-    map.addListener('center_changed', () => {
-      const center = map.getCenter();
-      addressForm.value.latitude = center.lat().toFixed(6);
-      addressForm.value.longitude = center.lng().toFixed(6);
-    });
-
-  } catch (err) {
-    console.error('Map init error:', err);
-  }
+  map.addListener('center_changed', () => {
+    // Optionally update marker to center
+  });
 };
 
 const saveAddress = () => {
@@ -206,11 +310,20 @@ const getCurrentLocation = () => {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        addressForm.value.latitude = position.coords.latitude.toFixed(6);
-        addressForm.value.longitude = position.coords.longitude.toFixed(6);
+        const { latitude, longitude } = position.coords;
+        addressForm.value.latitude = latitude.toFixed(6);
+        addressForm.value.longitude = longitude.toFixed(6);
         
-        if (map && addressStep.value === 2) {
-          map.panTo({ lat: position.coords.latitude, lng: position.coords.longitude });
+        // Update gmp-map if in step 2
+        if (addressStep.value === 2) {
+          const mapEl = document.getElementById('map-picker');
+          if (mapEl) {
+            mapEl.center = { lat: latitude, lng: longitude };
+          }
+        }
+        
+        if (addressStep.value === 1) {
+          nextAddressStep();
         }
         
         store.showNotification('Lokasi berhasil diambil', 'success');
@@ -643,15 +756,6 @@ const placeOrder = async () => {
     </div>
   </div>
 
-    <!-- Address Modal -->
-    <div class="modal-overlay" v-if="showAddressModal" @click.self="showAddressModal = false">
-      <div class="address-modal">
-        <div class="modal-header">
-          <h3>Pilih Alamat</h3>
-          <button class="close-modal" @click="showAddressModal = false">×</button>
-        </div>
-        
-        <div class="modal-body">
     <!-- Address Modal Redesign -->
     <div class="modal-overlay" v-if="showAddressModal" @click.self="showAddressModal = false">
       <div class="address-modal multi-step">
@@ -683,31 +787,60 @@ const placeOrder = async () => {
         
         <div class="modal-body">
           <!-- STEP 1: Search -->
-          <div v-if="addressStep === 1" class="step-content search-step">
+          <div :class="{ 'step-hidden': addressStep !== 1 }" class="step-content search-step">
             <h4 class="step-title">Di mana lokasi tujuan pengirimanmu?</h4>
-            <div class="search-input-wrapper">
-               <input type="text" ref="searchInputRef" v-model="addressForm.searchQuery" placeholder="Tulis nama jalan / gedung / perumahan" @keyup.enter="nextAddressStep">
-               <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                 <circle cx="11" cy="11" r="8"></circle>
-                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-               </svg>
-            </div>
             
-            <button type="button" class="use-current-location-btn" @click="getCurrentLocation">
-               <span class="gps-icon">⌖</span> Gunakan Lokasi Saat Ini
-            </button>
-            
-            <div class="step-actions">
-               <button class="primary-step-btn" @click="nextAddressStep">Pilih & Lanjut Pinpoint</button>
+            <div class="custom-search-container">
+              <div class="search-input-wrapper">
+                <span class="search-icon">🔍</span>
+                <input 
+                  type="text" 
+                  class="address-search-input"
+                  v-model="addressForm.searchQuery"
+                  @input="onSearchInput"
+                  placeholder="Tulis nama jalan / gedung / perumahan"
+                >
+                <button v-if="addressForm.searchQuery" class="clear-search" @click="addressForm.searchQuery = ''; predictions = [];">×</button>
+              </div>
+
+              <!-- Predictions List -->
+              <div class="search-results-overlay" v-if="predictions.length > 0 || addressForm.searchQuery.length >= 3">
+                <div class="search-option-item" @click="getCurrentLocation">
+                  <span class="option-icon">⌖</span>
+                  <div class="option-content">
+                    <span class="option-title">Gunakan Lokasi Saat Ini</span>
+                  </div>
+                </div>
+                
+                <div class="search-option-item manual-trigger" @click="addressStep = 3">
+                  <span class="option-icon">📝</span>
+                  <div class="option-content">
+                    <span class="option-title">Tidak ketemu? Isi alamat secara manual</span>
+                  </div>
+                </div>
+
+                <div class="prediction-divider" v-if="predictions.length > 0"></div>
+
+                <div class="prediction-item" v-for="p in predictions" :key="p.place_id" @click="selectPrediction(p)">
+                  <span class="pin-icon">📍</span>
+                  <div class="prediction-content">
+                    <span class="place-name">{{ p.structured_formatting.main_text }}</span>
+                    <span class="place-detail">{{ p.structured_formatting.secondary_text }}</span>
+                  </div>
+                </div>
+
+                <div class="search-footer" @click="addressStep = 3">
+                   <span>Mau cara lain? Isi alamat secara manual</span>
+                </div>
+              </div>
             </div>
           </div>
 
           <!-- STEP 2: Map Pinpoint -->
-          <div v-if="addressStep === 2" class="step-content map-step">
+          <div :class="{ 'step-hidden': addressStep !== 2 }" class="step-content map-step">
              <h4 class="step-title">Tentukan pinpoint lokasi</h4>
              <div class="map-picker-section">
-                <div id="map-picker" class="map-container-el"></div>
-                <div class="map-center-pin">📍</div>
+                <div ref="mapContainerRef" class="map-container-el"></div>
              </div>
              <p class="map-hint">Geser peta untuk memindahkan pin tepat di depan pintu masuk!</p>
              
@@ -717,7 +850,7 @@ const placeOrder = async () => {
           </div>
 
           <!-- STEP 3: Detail Form -->
-          <div v-if="addressStep === 3" class="step-content details-step">
+          <div :class="{ 'step-hidden': addressStep !== 3 }" class="step-content details-step">
              <h4 class="step-title">Lengkapi detail alamat</h4>
              
              <!-- field order as requested: 1. Nama Alamat, 2. Nama Penerima, 3. No Telp, 4. Provinsi & Kota, 5. Kode Pos, 6. Detail -->
@@ -775,13 +908,10 @@ const placeOrder = async () => {
                 </button>
              </div>
           </div>
-        </div>
       </div>
     </div>
-        </div>
-      </div>
-    </div>
-  </template>
+  </div>
+</template>
 
 <style scoped>
 .checkout-page {
@@ -1776,28 +1906,141 @@ input:focus, textarea:focus {
 
 .search-input-wrapper input {
   padding-left: 45px;
-}
-
-.use-current-location-btn {
-  background: rgba(255, 255, 255, 0.05);
+  width: 100%;
+  background: #1a1a1a;
   border: 1px solid #444;
   color: #fff;
-  padding: 12px;
+  padding-top: 12px;
+  padding-bottom: 12px;
   border-radius: 8px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.95rem;
+  transition: all 0.3s;
+}
+
+.search-input-wrapper input:focus {
+  border-color: #9e4d3d;
+  outline: none;
+  background: #222;
+  box-shadow: 0 0 0 3px rgba(158, 77, 61, 0.1);
+}
+
+/* Custom Search & Tokopedia-style UI */
+.custom-search-container {
+  position: relative;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.search-results-overlay {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin-top: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  z-index: 1000;
+  overflow: hidden;
+  max-height: 450px;
+  overflow-y: auto;
+}
+
+.search-option-item, .prediction-item {
+  padding: 15px 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.search-option-item:hover, .prediction-item:hover {
+  background: #f8f9fa;
+}
+
+.search-option-item:last-child {
+  border-bottom: none;
+}
+
+.option-icon, .pin-icon {
+  font-size: 1.2rem;
+  min-width: 30px;
+  display: flex;
+  justify-content: center;
+}
+
+.option-icon { color: #666; }
+.pin-icon { color: #888; }
+
+.option-content, .prediction-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.option-title {
+  color: #333;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.place-name {
+  color: #222;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.place-detail {
+  color: #777;
+  font-size: 0.8rem;
+  margin-top: 2px;
+}
+
+.prediction-divider {
+  height: 8px;
+  background: #f4f4f4;
+}
+
+.search-footer {
+  padding: 15px 20px;
+  background: #fff;
+  color: #6c757d;
+  font-size: 0.85rem;
+  text-align: center;
+  cursor: pointer;
+}
+
+.search-footer:hover {
+  color: #9e4d3d;
+  text-decoration: underline;
+}
+
+.clear-search {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #444;
+  color: #fff;
+  border: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  width: 100%;
+  font-size: 12px;
   cursor: pointer;
-  font-weight: 600;
-  transition: all 0.3s;
-  margin-bottom: 10px;
+  z-index: 2;
 }
 
-.use-current-location-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: #666;
+.manual-trigger .option-title {
+  color: #777;
+  font-weight: 400;
+  font-size: 0.9rem;
 }
 
 .step-actions {
@@ -1828,16 +2071,36 @@ input:focus, textarea:focus {
   position: relative;
   flex-grow: 1;
   min-height: 250px;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-.map-center-pin {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -100%);
-  font-size: 2rem;
-  pointer-events: none;
-  z-index: 10;
+.step-hidden {
+  display: none !important;
+}
+
+/* For Maps, we keep them in DOM but visually hidden to maintain JS state/linker */
+.map-step.step-hidden, .search-step.step-hidden, .details-step.step-hidden {
+  display: block !important;
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+}
+
+.map-container-el {
+  width: 100%;
+  height: 350px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #333;
+}
+
+.map-container-el {
+  width: 100%;
+  height: 350px;
 }
 
 .map-hint {
@@ -1851,5 +2114,47 @@ input:focus, textarea:focus {
   .checkout-layout {
     grid-template-columns: 1fr;
   }
+}
+
+/* Google Maps Autocomplete suggestions fix */
+.pac-container {
+  z-index: 110000 !important;
+  background-color: #222 !important;
+  border: 1px solid #333 !important;
+  border-radius: 8px !important;
+  margin-top: 5px !important;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+.pac-item {
+  border-top: 1px solid #333 !important;
+  padding: 10px 15px !important;
+  cursor: pointer !important;
+  color: #fff !important;
+  font-size: 0.9rem !important;
+  line-height: 1.5 !important;
+}
+
+.pac-item:hover {
+  background-color: #333 !important;
+}
+
+.pac-item-query {
+  color: #fff !important;
+  font-size: 0.95rem !important;
+}
+
+.pac-matched {
+  color: #9e4d3d !important;
+}
+
+.pac-icon {
+  filter: invert(1);
+  margin-top: 5px !important;
+}
+
+.pac-item:first-child {
+  border-top: none !important;
 }
 </style>
