@@ -28,7 +28,7 @@ const router = createRouter({
             component: () => import('../views/InvoiceView.vue')
         },
         {
-            path: '/merch-invoice/:invoiceId',
+            path: '/invoice/:invoiceId',
             name: 'merch-invoice',
             component: () => import('../views/InvoiceView.vue')
         },

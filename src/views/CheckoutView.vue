@@ -412,6 +412,20 @@ const availableStores = computed(() => {
   });
 });
 
+const canPickup = computed(() => {
+  return enrichedCart.value.some(item => {
+    const product = allProducts.value.find(p => p.id == item.id);
+    return product && product.is_pickup_inorder == 1;
+  });
+});
+
+const canDeliver = computed(() => {
+  return enrichedCart.value.some(item => {
+    const product = allProducts.value.find(p => p.id == item.id);
+    return product && product.is_delivery == 1;
+  });
+});
+
 const subtotal = computed(() => {
   return enrichedCart.value.reduce((sum, item) => {
     const price = item.originalPrice || item.price;
@@ -567,7 +581,7 @@ const placeOrder = async () => {
         phone: formData.value.phone,
         is_active: 1
       },
-      success_redirect_url: `https://store.deelestari.com/merch-invoice/{invoice_merch}`,
+      success_redirect_url: `https://store.deelestari.com/invoice/{invoice_merch}`,
       failure_redirect_url: `https://store.deelestari.com/checkout`,
       is_microsite: 1,
       microsite_url: 'https://store.deelestari.com'
@@ -642,7 +656,7 @@ const placeOrder = async () => {
                   </div>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group" v-if="canPickup">
                   <label>{{ t('storePengambilan') }}</label>
                   <div class="custom-select-wrapper">
                     <select v-model="formData.storeLocation" class="custom-select">
@@ -655,70 +669,72 @@ const placeOrder = async () => {
                   </div>
                 </div>
 
-                <div class="form-group address-section-custom">
-                  <label class="address-header-label">ALAMAT PENGIRIMAN</label>
-                  <div class="address-card-custom" v-if="formData.address">
-                    <div class="address-main-layout">
-                      <div class="address-icon-pin">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                      </div>
-                      <div class="address-details-content">
-                        <div class="address-title-row">
-                          <span class="address-label-text">{{ addressForm.addressLabel || 'Rumah' }}</span>
-                          <span class="address-dot">·</span>
-                          <span class="address-recipient-name">{{ formData.fullName }}</span>
+                <div v-if="canDeliver">
+                  <div class="form-group address-section-custom">
+                    <label class="address-header-label">ALAMAT PENGIRIMAN</label>
+                    <div class="address-card-custom" v-if="formData.address">
+                      <div class="address-main-layout">
+                        <div class="address-icon-pin">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                         </div>
-                        <div class="address-full-text">{{ formData.address }}</div>
-                        <div class="address-contact">{{ formData.phone }}</div>
-                      </div>
-                      <div class="address-action-col">
-                        <button type="button" class="ganti-address-btn" @click="openAddressModal">Ganti</button>
+                        <div class="address-details-content">
+                          <div class="address-title-row">
+                            <span class="address-label-text">{{ addressForm.addressLabel || 'Rumah' }}</span>
+                            <span class="address-dot">·</span>
+                            <span class="address-recipient-name">{{ formData.fullName }}</span>
+                          </div>
+                          <div class="address-full-text">{{ formData.address }}</div>
+                          <div class="address-contact">{{ formData.phone }}</div>
+                        </div>
+                        <div class="address-action-col">
+                          <button type="button" class="ganti-address-btn" @click="openAddressModal">Ganti</button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div class="address-placeholder-custom" v-else @click="openAddressModal">
-                    <div class="placeholder-content">
-                      <span class="plus-icon">+</span>
-                      <p>Pilih Alamat Pengiriman</p>
+                    <div class="address-placeholder-custom" v-else @click="openAddressModal">
+                      <div class="placeholder-content">
+                        <span class="plus-icon">+</span>
+                        <p>Pilih Alamat Pengiriman</p>
+                      </div>
+                    </div>
+                    
+                    <div class="map-link-wrapper" v-if="formData.latitude && formData.longitude">
+                      <a :href="`https://www.google.com/maps?q=${formData.latitude},${formData.longitude}`" target="_blank" class="maps-direct-btn">
+                        <span class="map-icon">📍</span> Lihat di Google Maps
+                      </a>
                     </div>
                   </div>
-                  
-                  <div class="map-link-wrapper" v-if="formData.latitude && formData.longitude">
-                    <a :href="`https://www.google.com/maps?q=${formData.latitude},${formData.longitude}`" target="_blank" class="maps-direct-btn">
-                      <span class="map-icon">📍</span> Lihat di Google Maps
-                    </a>
-                  </div>
-                </div>
 
-                <div class="form-group shipping-service-full">
-                    <label>Pilih Pengiriman <span class="required">*</span></label>
-                    <div class="flex-row-action">
-                      <div class="custom-select-wrapper flex-grow">
-                        <select v-model="selectedRate" class="custom-select" required :disabled="shippingRates.length === 0">
-                          <option :value="null" disabled>{{ shippingRates.length > 0 ? 'Pilih Pengiriman' : (isCheckingOngkir ? 'Sedang mengecek ongkir...' : 'Silakan pilih alamat terlebih dahulu') }}</option>
-                          <optgroup label="Instant" v-if="groupedShippingRates['Instant'].length > 0">
-                            <option v-for="rate in groupedShippingRates['Instant']" :key="rate.id" :value="rate">
-                              {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
-                            </option>
-                          </optgroup>
-                          <optgroup label="Sameday" v-if="groupedShippingRates['Sameday'].length > 0">
-                            <option v-for="rate in groupedShippingRates['Sameday']" :key="rate.id" :value="rate">
-                              {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
-                            </option>
-                          </optgroup>
-                          <optgroup label="Reguler" v-if="groupedShippingRates['Reguler'].length > 0">
-                            <option v-for="rate in groupedShippingRates['Reguler']" :key="rate.id" :value="rate">
-                              {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
-                            </option>
-                          </optgroup>
-                        </select>
-                        <div class="select-arrow"></div>
+                  <div class="form-group shipping-service-full">
+                      <label>Pilih Pengiriman <span class="required">*</span></label>
+                      <div class="flex-row-action">
+                        <div class="custom-select-wrapper flex-grow">
+                          <select v-model="selectedRate" class="custom-select" required :disabled="shippingRates.length === 0">
+                            <option :value="null" disabled>{{ shippingRates.length > 0 ? 'Pilih Pengiriman' : (isCheckingOngkir ? 'Sedang mengecek ongkir...' : 'Silakan pilih alamat terlebih dahulu') }}</option>
+                            <optgroup label="Instant" v-if="groupedShippingRates['Instant'].length > 0">
+                              <option v-for="rate in groupedShippingRates['Instant']" :key="rate.id" :value="rate">
+                                {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
+                              </option>
+                            </optgroup>
+                            <optgroup label="Sameday" v-if="groupedShippingRates['Sameday'].length > 0">
+                              <option v-for="rate in groupedShippingRates['Sameday']" :key="rate.id" :value="rate">
+                                {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
+                              </option>
+                            </optgroup>
+                            <optgroup label="Reguler" v-if="groupedShippingRates['Reguler'].length > 0">
+                              <option v-for="rate in groupedShippingRates['Reguler']" :key="rate.id" :value="rate">
+                                {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
+                              </option>
+                            </optgroup>
+                          </select>
+                          <div class="select-arrow"></div>
+                        </div>
                       </div>
+                      <p v-if="selectedRate" class="shipping-info-text">
+                        {{ selectedRate.description }} (Estimasi: {{ selectedRate.duration }})
+                      </p>
                     </div>
-                    <p v-if="selectedRate" class="shipping-info-text">
-                      {{ selectedRate.description }} (Estimasi: {{ selectedRate.duration }})
-                    </p>
-                  </div>
+                </div>
               </form>
             </div>
           </section>
@@ -910,6 +926,11 @@ const placeOrder = async () => {
                 </div>
               </div>
             </div>
+
+            <div class="step-actions">
+               <button class="primary-step-btn" @click="addressStep = 3">Isi Manual</button>
+               <button class="primary-step-btn" v-if="addressForm.latitude" @click="nextAddressStep">Selanjutnya</button>
+            </div>
           </div>
 
           <!-- STEP 2: Map Pinpoint -->
@@ -920,8 +941,9 @@ const placeOrder = async () => {
              </div>
              <p class="map-hint">Geser peta untuk memindahkan pin tepat di depan pintu masuk!</p>
              
-             <div class="step-actions">
-                <button class="primary-step-btn" @click="() => { nextAddressStep(); fetchProvinces(); }">Pilih Lokasi & Lanjut Isi Alamat</button>
+             <div class="step-actions dual-btns">
+                <button class="secondary-step-btn" @click="prevAddressStep">Kembali</button>
+                <button class="primary-step-btn" @click="() => { nextAddressStep(); fetchProvinces(); }">Selanjutnya</button>
              </div>
           </div>
 
@@ -978,7 +1000,8 @@ const placeOrder = async () => {
                <textarea v-model="addressForm.detail" placeholder="Kecamatan, Desa, No. Rumah, Nama Jalan, dll" rows="3"></textarea>
              </div>
 
-             <div class="step-actions">
+             <div class="step-actions dual-btns">
+                <button class="secondary-step-btn" @click="prevAddressStep">Kembali</button>
                 <button class="save-address-btn" @click="saveAddress">
                   <span class="check-icon">✓</span> Simpan Alamat
                 </button>
@@ -1434,10 +1457,59 @@ input:focus, textarea:focus {
 }
 
 .pay-btn:disabled {
-  background-color: #555;
-  cursor: not-allowed;
-  transform: none;
   box-shadow: none;
+}
+
+.step-actions {
+  margin-top: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.step-actions.dual-btns {
+  flex-direction: row;
+}
+
+.primary-step-btn, .save-address-btn {
+  width: 100%;
+  background: var(--secondary-accent, #9e4d3d);
+  color: white;
+  border: none;
+  padding: 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.secondary-step-btn {
+  width: 100%;
+  background: transparent;
+  color: #fff;
+  border: 1px solid #444;
+  padding: 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.secondary-step-btn:hover {
+  background: #333;
+}
+
+.primary-step-btn:hover, .save-address-btn:hover {
+  background: #b55846;
+  transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+  .step-actions.dual-btns {
+    flex-direction: column-reverse;
+  }
 }
 
 .label-with-action {
