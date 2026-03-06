@@ -259,7 +259,7 @@ const initMap = () => {
     
     // Reverse Geocode to update Zip/City/Province if pinned manually
     if (geocoder) {
-      geocoder.geocode({ location: pos }, (results, status) => {
+      geocoder.geocode({ location: pos }, async (results, status) => {
         if (status === 'OK' && results[0]) {
           const place = results[0];
           let gProvince = '';
@@ -272,8 +272,29 @@ const initMap = () => {
             else if (types.includes('administrative_area_level_2')) gCity = component.long_name;
           }
           if (gZip) addressForm.value.zip = gZip;
-          // Note: Province/City matching happens automatically if needed, 
-          // but we keep the current one to avoid flickering unless major change
+          
+          // Auto-match Province and City from Pinpoint
+          if (provinces.value.length === 0) await fetchProvinces();
+          
+          const matchedProv = provinces.value.find(p => 
+            p.name.toLowerCase().includes(gProvince.toLowerCase()) || 
+            gProvince.toLowerCase().includes(p.name.toLowerCase())
+          );
+          
+          if (matchedProv) {
+            addressForm.value.provinceId = matchedProv.id;
+            await fetchCities(matchedProv.id);
+            
+            const cleanCity = gCity.replace(/^(Kota|Kabupaten)\s+/i, '');
+            const matchedCity = cities.value.find(c => 
+              c.name.toLowerCase().includes(cleanCity.toLowerCase()) || 
+              cleanCity.toLowerCase().includes(c.name.toLowerCase())
+            );
+            
+            if (matchedCity) {
+              addressForm.value.cityName = matchedCity.name;
+            }
+          }
         }
       });
     }
@@ -352,8 +373,28 @@ const availableStores = computed(() => {
   });
   return stores;
 });
-
-const enrichedCart = computed(() => {
+ 
+ const groupedShippingRates = computed(() => {
+   const groups = {
+     'Instant': [],
+     'Sameday': [],
+     'Reguler': []
+   };
+   
+   shippingRates.value.forEach(rate => {
+     if (groups[rate.type]) {
+       groups[rate.type].push(rate);
+     } else {
+       // Fallback for unexpected types
+       if (!groups['Reguler']) groups['Reguler'] = [];
+       groups['Reguler'].push(rate);
+     }
+   });
+   
+   return groups;
+ });
+ 
+ const enrichedCart = computed(() => {
   return store.cart.map(item => {
     const product = allProducts.value.find(p => p.id == item.id);
     let weight = product ? parseFloat(product.weight || 1000) : 1000;
@@ -423,12 +464,19 @@ const fetchShippingRates = async () => {
 
     const result = await response.json();
     if (result.success && result.rates) {
-      // Flatten rates from different categories: instant, same_day, regular
-      const allRates = [
-        ...(result.rates.instant || []),
-        ...(result.rates.same_day || []),
-        ...(result.rates.regular || [])
-      ].map(rate => ({
+      // Keep rates categorized for grouping display
+      // Ensure any service with "Instant" in its name is categorized as Instant
+      const processRate = (rate, defaultType) => {
+        const serviceName = (rate.courier_service_name || rate.service || '').toLowerCase();
+        if (serviceName.includes('instant')) return { ...rate, type: 'Instant' };
+        return { ...rate, type: defaultType };
+      };
+
+      const instant = (result.rates.instant || []).map(r => processRate(r, 'Instant'));
+      const sameDay = (result.rates.same_day || []).map(r => processRate(r, 'Sameday'));
+      const regular = (result.rates.regular || []).map(r => processRate(r, 'Reguler'));
+
+      const allRates = [...instant, ...sameDay, ...regular].map(rate => ({
         ...rate,
         courier_name: rate.courier,
         courier_service_name: rate.service,
@@ -607,16 +655,32 @@ const placeOrder = async () => {
                   </div>
                 </div>
 
-                <div class="form-group">
-                  <div class="label-with-action">
-                    <label>{{ t('alamat') }} <span class="required">*</span></label>
-                    <button type="button" class="text-btn" @click="openAddressModal">Pilih Alamat</button>
+                <div class="form-group address-section-custom">
+                  <label class="address-header-label">ALAMAT PENGIRIMAN</label>
+                  <div class="address-card-custom" v-if="formData.address">
+                    <div class="address-main-layout">
+                      <div class="address-icon-pin">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                      </div>
+                      <div class="address-details-content">
+                        <div class="address-title-row">
+                          <span class="address-label-text">{{ addressForm.addressLabel || 'Rumah' }}</span>
+                          <span class="address-dot">·</span>
+                          <span class="address-recipient-name">{{ formData.fullName }}</span>
+                        </div>
+                        <div class="address-full-text">{{ formData.address }}</div>
+                        <div class="address-contact">{{ formData.phone }}</div>
+                      </div>
+                      <div class="address-action-col">
+                        <button type="button" class="ganti-address-btn" @click="openAddressModal">Ganti</button>
+                      </div>
+                    </div>
                   </div>
-                  <div class="address-display" v-if="formData.address">
-                    <p>{{ formData.address }}</p>
-                  </div>
-                  <div class="address-placeholder" v-else @click="openAddressModal">
-                    <p>Klik untuk memilih atau memasukkan alamat</p>
+                  <div class="address-placeholder-custom" v-else @click="openAddressModal">
+                    <div class="placeholder-content">
+                      <span class="plus-icon">+</span>
+                      <p>Pilih Alamat Pengiriman</p>
+                    </div>
                   </div>
                   
                   <div class="map-link-wrapper" v-if="formData.latitude && formData.longitude">
@@ -627,14 +691,26 @@ const placeOrder = async () => {
                 </div>
 
                 <div class="form-group shipping-service-full">
-                    <label>Servis Pengiriman <span class="required">*</span></label>
+                    <label>Pilih Pengiriman <span class="required">*</span></label>
                     <div class="flex-row-action">
                       <div class="custom-select-wrapper flex-grow">
                         <select v-model="selectedRate" class="custom-select" required :disabled="shippingRates.length === 0">
-                          <option :value="null" disabled>{{ shippingRates.length > 0 ? 'Pilih Servis' : (isCheckingOngkir ? 'Sedang mengecek ongkir...' : 'Silakan pilih alamat terlebih dahulu') }}</option>
-                          <option v-for="rate in shippingRates" :key="rate.courier_service_code" :value="rate">
-                            {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
-                          </option>
+                          <option :value="null" disabled>{{ shippingRates.length > 0 ? 'Pilih Pengiriman' : (isCheckingOngkir ? 'Sedang mengecek ongkir...' : 'Silakan pilih alamat terlebih dahulu') }}</option>
+                          <optgroup label="Instant" v-if="groupedShippingRates['Instant'].length > 0">
+                            <option v-for="rate in groupedShippingRates['Instant']" :key="rate.id" :value="rate">
+                              {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
+                            </option>
+                          </optgroup>
+                          <optgroup label="Sameday" v-if="groupedShippingRates['Sameday'].length > 0">
+                            <option v-for="rate in groupedShippingRates['Sameday']" :key="rate.id" :value="rate">
+                              {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
+                            </option>
+                          </optgroup>
+                          <optgroup label="Reguler" v-if="groupedShippingRates['Reguler'].length > 0">
+                            <option v-for="rate in groupedShippingRates['Reguler']" :key="rate.id" :value="rate">
+                              {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
+                            </option>
+                          </optgroup>
                         </select>
                         <div class="select-arrow"></div>
                       </div>
@@ -898,7 +974,7 @@ const placeOrder = async () => {
              </div>
 
              <div class="form-group">
-               <label>Detail Alamat / Catatan Kurir</label>
+               <label>Detail Alamat</label>
                <textarea v-model="addressForm.detail" placeholder="Kecamatan, Desa, No. Rumah, Nama Jalan, dll" rows="3"></textarea>
              </div>
 
@@ -1418,6 +1494,137 @@ input:focus, textarea:focus {
   font-size: 0.9rem;
 }
 
+/* NEW Address Card Styles */
+.address-section-custom {
+  margin-bottom: 25px;
+}
+
+.address-header-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #888;
+  margin-bottom: 12px;
+  letter-spacing: 0.5px;
+  display: block;
+}
+
+.address-card-custom {
+  background: #252525; /* Dark background matching other sections */
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #333;
+  color: #F4F1EC; /* Light text */
+  margin-bottom: 15px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.address-main-layout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.address-icon-pin {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.address-details-content {
+  flex-grow: 1;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.address-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.address-label-text {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #fff;
+}
+
+.address-dot {
+  color: #666;
+  font-weight: 700;
+}
+
+.address-recipient-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #ccc;
+}
+
+.address-full-text {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #aaa;
+  margin-bottom: 4px;
+}
+
+.address-contact {
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+.address-action-col {
+  flex-shrink: 0;
+}
+
+.ganti-address-btn {
+  background: #333;
+  border: 1px solid #444;
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ganti-address-btn:hover {
+  background: #444;
+  border-color: #555;
+  transform: translateY(-1px);
+}
+
+.address-placeholder-custom {
+  background: #1a1a1a;
+  border: 1px dashed #444;
+  border-radius: 12px;
+  padding: 30px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.address-placeholder-custom:hover {
+  border-color: var(--secondary-accent, #9e4d3d);
+  background: #222;
+}
+
+.placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.plus-icon {
+  font-size: 1.5rem;
+  color: #888;
+}
+
+.address-placeholder-custom p {
+  margin: 0;
+  color: #888;
+  font-weight: 600;
+}
+
 /* Modal Styles */
 .modal-overlay {
   position: fixed;
@@ -1593,12 +1800,31 @@ input:focus, textarea:focus {
     font-size: 1.8rem;
   }
 
-  .section-header {
-    padding: 15px 15px 0 15px;
-  }
-
   .section-body {
     padding: 0 15px 15px 15px;
+  }
+
+  /* Mobile Address Card Tweaks */
+  .address-card-custom {
+    padding: 15px;
+  }
+
+  .address-title-row {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .address-label-text, .address-recipient-name {
+    font-size: 0.85rem;
+  }
+
+  .address-full-text, .address-contact {
+    font-size: 0.8rem;
+  }
+
+  .ganti-address-btn {
+    padding: 4px 12px;
+    font-size: 0.75rem;
   }
 
   .form-row {
