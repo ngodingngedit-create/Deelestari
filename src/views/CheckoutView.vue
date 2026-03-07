@@ -585,6 +585,7 @@ const placeOrder = async () => {
           product_id: item.id,
           qty: item.quantity,
           price: item.price,
+          weight: Math.max(1, parseInt(item.weight || 0)),
           admin_fee: item.admin_fee || 0,
           order_notes: item.note || ''
         };
@@ -600,6 +601,9 @@ const placeOrder = async () => {
         type: selectedRate.value?.courier_service_name || "Standard",
         courier_company: selectedRate.value?.courier_name?.toLowerCase() || "jne",
         courier_type: mapCourierType(selectedRate.value?.type),
+        origin_contact_name: "Dee Lestari Store",
+        origin_contact_phone: "081234567890",
+        origin_address: "Cimanggis, Depok, Jawa Barat",
         origin_postal_code: "16511",
         destination_postal_code: formData.value.zip || "10110",
         origin_latitude: -6.40618147570509,
