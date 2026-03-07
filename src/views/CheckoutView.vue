@@ -374,25 +374,23 @@ const availableStores = computed(() => {
   return stores;
 });
  
- const groupedShippingRates = computed(() => {
-   const groups = {
-     'Instant': [],
-     'Sameday': [],
-     'Reguler': []
-   };
-   
-   shippingRates.value.forEach(rate => {
-     if (groups[rate.type]) {
-       groups[rate.type].push(rate);
-     } else {
-       // Fallback for unexpected types
-       if (!groups['Reguler']) groups['Reguler'] = [];
-       groups['Reguler'].push(rate);
-     }
-   });
-   
-   return groups;
- });
+   const groupedShippingRates = computed(() => {
+    const groups = {
+      'Reguler': []
+    };
+    
+    shippingRates.value.forEach(rate => {
+      // Filter for Reguler only
+      if (rate.type === 'Reguler') {
+        groups['Reguler'].push(rate);
+      } else if (!rate.type) {
+        // Fallback for untyped rates to Reguler
+        groups['Reguler'].push(rate);
+      }
+    });
+    
+    return groups;
+  });
  
  const enrichedCart = computed(() => {
   return store.cart.map(item => {
@@ -750,21 +748,11 @@ const placeOrder = async () => {
                         <div class="custom-select-wrapper flex-grow">
                           <select v-model="selectedRate" class="custom-select" required :disabled="shippingRates.length === 0">
                             <option :value="null" disabled>{{ shippingRates.length > 0 ? 'Pilih Pengiriman' : (isCheckingOngkir ? 'Sedang mengecek ongkir...' : 'Silakan pilih alamat terlebih dahulu') }}</option>
-                            <optgroup label="Instant" v-if="groupedShippingRates['Instant'].length > 0">
-                              <option v-for="rate in groupedShippingRates['Instant']" :key="rate.id" :value="rate">
-                                {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
-                              </option>
-                            </optgroup>
-                            <optgroup label="Sameday" v-if="groupedShippingRates['Sameday'].length > 0">
-                              <option v-for="rate in groupedShippingRates['Sameday']" :key="rate.id" :value="rate">
-                                {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
-                              </option>
-                            </optgroup>
-                            <optgroup label="Reguler" v-if="groupedShippingRates['Reguler'].length > 0">
-                              <option v-for="rate in groupedShippingRates['Reguler']" :key="rate.id" :value="rate">
-                                {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
-                              </option>
-                            </optgroup>
+                             <optgroup label="Reguler" v-if="groupedShippingRates['Reguler'].length > 0">
+                               <option v-for="rate in groupedShippingRates['Reguler']" :key="rate.id" :value="rate">
+                                 {{ rate.courier_name }} {{ rate.courier_service_name }} - {{ formatRupiah(rate.price) }}
+                               </option>
+                             </optgroup>
                           </select>
                           <div class="select-arrow"></div>
                         </div>
