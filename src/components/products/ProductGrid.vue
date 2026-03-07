@@ -22,12 +22,18 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['update-quantity', 'view-product', 'load-more']);
+const emit = defineEmits(['update-quantity', 'view-product', 'load-more', 'open-variant-selector']);
 const { t } = useLanguage();
 const sentinel = ref(null);
 
-const getQuantity = (productId) => {
-  const item = props.cartItems.find(i => i.id === productId);
+const getQuantity = (product) => {
+  if (product.variants && product.variants.length > 0) {
+    // Sum quantities of all variants in cart for this product
+    return props.cartItems
+      .filter(i => i.id === product.id)
+      .reduce((sum, item) => sum + item.quantity, 0);
+  }
+  const item = props.cartItems.find(i => i.id === product.id);
   return item ? item.quantity : 0;
 };
 
@@ -50,9 +56,10 @@ onMounted(() => {
       v-for="product in products" 
       :key="product.id" 
       :product="product" 
-      :quantity="getQuantity(product.id)"
+      :quantity="getQuantity(product)"
       @update-quantity="(p, q) => $emit('update-quantity', p, q)"
       @view-product="(p) => $emit('view-product', p)"
+      @open-variant-selector="(p) => $emit('open-variant-selector', p)"
     />
     
     <div v-if="products.length === 0 && !loading" class="no-results">

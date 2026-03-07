@@ -87,8 +87,8 @@ const prevAddressStep = () => {
 onMounted(async () => {
   try {
     const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
-    const creatorId = baseUrl.includes('api.kolektix.com') ? 129 : 48;
-    const response = await fetch(`${baseUrl}/api/product?creator_id=${creatorId}`);
+    const creatorId = baseUrl.includes('api.kolektix.com') ? 129 : [6, 48];
+    const response = await fetch(`${baseUrl}/api/product?creator_id=${Array.isArray(creatorId) ? creatorId.join('&creator_id=') : creatorId}`);
     const result = await response.json();
     allProducts.value = result.data || [];
   } catch (err) {
@@ -466,10 +466,10 @@ const fetchShippingRates = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        origin_postal_code: "16519",
+        origin_postal_code: "16511",
         destination_postal_code: formData.value.zip,
-        origin_latitude: -6.406675,
-        origin_longitude: 106.7684233,
+        origin_latitude: -6.40618147570509,
+        origin_longitude: 106.7689288865081,
         destination_latitude: parseFloat(formData.value.latitude) || -6.190000,
         destination_longitude: parseFloat(formData.value.longitude) || 106.830000,
         weight: totalWeight
@@ -540,19 +540,31 @@ const placeOrder = async () => {
   
   try {
     const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
-    
+    const totalWeight = enrichedCart.value.reduce((sum, item) => sum + (item.quantity * item.weight), 0);
+    const mapCourierType = (type) => {
+      if (!type) return 'reg';
+      const t = type.toLowerCase();
+      if (t.includes('instant')) return 'instant';
+      if (t.includes('same') || t.includes('day')) return 'same_day';
+      return 'reg';
+    };
+
     const payload = {
       user_id: 6,
       name_pemesan: formData.value.fullName,
       email_pemesan: formData.value.email,
       phone_pemesan: formData.value.phone,
       creator_id: baseUrl.includes('api.kolektix.com') ? 129 : 6,
+      total_price: subtotal.value - totalDiscount.value,
       grandtotal: total.value,
-      product: store.cart.map(item => {
+      admin_fee: totalAdminFee.value,
+      discount: totalDiscount.value,
+      product: enrichedCart.value.map(item => {
         const prod = {
           product_id: item.id,
           qty: item.quantity,
           price: item.price,
+          admin_fee: item.admin_fee || 0,
           order_notes: item.note || ''
         };
         if (item.variant_id) {
@@ -565,6 +577,18 @@ const placeOrder = async () => {
       courier: {
         main: selectedRate.value?.courier_name || "Byteship",
         type: selectedRate.value?.courier_service_name || "Standard",
+        courier_company: selectedRate.value?.courier_name?.toLowerCase() || "jne",
+        courier_type: mapCourierType(selectedRate.value?.type),
+        origin_postal_code: "16511",
+        destination_postal_code: formData.value.zip || "10110",
+        origin_latitude: -6.40618147570509,
+        origin_longitude: 106.7689288865081,
+        destination_latitude: parseFloat(formData.value.latitude) || -6.190000,
+        destination_longitude: parseFloat(formData.value.longitude) || 106.830000,
+        name: formData.value.fullName,
+        phone: formData.value.phone,
+        address: formData.value.address,
+        weight: totalWeight,
         price: shippingCost.value
       },
       address: {
@@ -581,7 +605,7 @@ const placeOrder = async () => {
         phone: formData.value.phone,
         is_active: 1
       },
-      success_redirect_url: `https://store.deelestari.com/invoice/{invoice_merch}`,
+      success_redirect_url: `https://store.deelestari.com/merch-invoice/{invoice_merch}`,
       failure_redirect_url: `https://store.deelestari.com/checkout`,
       is_microsite: 1,
       microsite_url: 'https://store.deelestari.com'
@@ -597,18 +621,33 @@ const placeOrder = async () => {
 
     const result = await response.json();
 
-    if (result.status && result.data && result.data.order) {
+    if (result.status && result.data && (result.data.order || result.data.orders)) {
+      // Handle both object and array response formats
+      const orderData = result.data.order || (result.data.orders && result.data.orders[0]);
+      
       // Success
-      store.setLastOrder(result.data.order);
+      if (orderData) store.setLastOrder(orderData);
       store.clearCart();
       
       // Redirect to Xendit
-      if (result.data.order.xendit_url) {
-        window.location.href = result.data.order.xendit_url;
-      } else if (result.xendit_invoice) {
-        window.location.href = result.xendit_invoice;
+      // Check multiple possible locations for the payment URL based on actual API response provided
+      const xenditUrl = orderData?.xendit_url || 
+                        result.data?.xendit?.[0]?.invoice_url || 
+                        result.data?.xendit?.[0]?.xendit_url ||
+                        result.data?.xendit_url || 
+                        result.xendit_url || 
+                        result.xendit_invoice;
+      
+      if (xenditUrl) {
+        window.location.href = xenditUrl;
       } else {
-        router.push('/invoice');
+        // Fallback to invoice view if no xendit_url found
+        const invoiceMerch = orderData?.invoice_no || orderData?.invoice_merch;
+        if (invoiceMerch) {
+          router.push(`/merch-invoice/${invoiceMerch}`);
+        } else {
+          router.push('/merch-invoice');
+        }
       }
     } else {
       store.showNotification(result.message || 'Failed to place order', 'error');
@@ -771,9 +810,9 @@ const placeOrder = async () => {
                                 </div>
                             </div>
                             <div class="checkout-qty-control">
-                                <button class="qty-btn small" @click="store.updateQuantity(item.id, -1)">-</button>
+                                <button class="qty-btn small" @click="store.updateQuantity(item.id, -1, item.variant_id)">-</button>
                                 <span class="qty-val">{{ item.quantity }}</span>
-                                <button class="qty-btn small" @click="store.updateQuantity(item.id, 1)">+</button>
+                                <button class="qty-btn small" @click="store.updateQuantity(item.id, 1, item.variant_id)">+</button>
                             </div>
                         </div>
                     </div>

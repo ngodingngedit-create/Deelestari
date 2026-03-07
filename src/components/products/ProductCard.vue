@@ -13,7 +13,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['update-quantity', 'view-product']);
+const emit = defineEmits(['update-quantity', 'view-product', 'open-variant-selector']);
 const { t } = useLanguage();
 
 const formatRupiah = (amount) => {
@@ -26,6 +26,24 @@ const discountPercentage = computed(() => {
   }
   return 0;
 });
+
+const hasVariants = computed(() => props.product.variants && props.product.variants.length > 0);
+
+const handleIncrease = () => {
+  if (hasVariants.value) {
+    emit('open-variant-selector', props.product);
+  } else {
+    emit('update-quantity', props.product, 1);
+  }
+};
+
+const handleDecrease = () => {
+  if (hasVariants.value) {
+    emit('open-variant-selector', props.product);
+  } else {
+    emit('update-quantity', props.product, -1);
+  }
+};
 </script>
 
 <template>
@@ -48,14 +66,14 @@ const discountPercentage = computed(() => {
         </div>
       </div>
       <div class="card-actions" style="margin-top: 0.75rem;">
-        <div class="qty-control">
-          <button class="qty-btn minus" :aria-label="t('decreaseQty')" @click.stop="$emit('update-quantity', product, -1)" :disabled="quantity === 0">
+        <div class="qty-control" @click.stop>
+          <button class="qty-btn minus" :aria-label="t('decreaseQty')" @click="handleDecrease" :disabled="quantity === 0">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
           </button>
           <span class="qty-val">{{ quantity }}</span>
-          <button class="qty-btn plus" :aria-label="t('increaseQty')" @click.stop="product.variants && product.variants.length > 0 ? $emit('view-product', product) : $emit('update-quantity', product, 1)">
+          <button class="qty-btn plus" :aria-label="t('increaseQty')" @click="handleIncrease">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>

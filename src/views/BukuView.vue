@@ -4,6 +4,7 @@ import HeroSection from '../components/layout/HeroSection.vue';
 import CategoryFilter from '../components/products/CategoryFilter.vue';
 import ProductGrid from '../components/products/ProductGrid.vue';
 import ProductDetailModal from '../components/products/ProductDetailModal.vue';
+import QuickVariantModal from '../components/products/QuickVariantModal.vue';
 import { useProducts } from '../composables/useProducts';
 import { store } from '../store';
 
@@ -13,6 +14,7 @@ const searchQuery = ref('');
 const activeCategory = ref('Semua');
 const selectedProduct = ref(null);
 const isModalOpen = ref(false);
+const isVariantModalOpen = ref(false);
 
 const filteredProducts = computed(() => {
   return apiProducts.value.filter(product => {
@@ -52,7 +54,19 @@ const openProductModal = (product) => {
 const closeProductModal = () => {
   isModalOpen.value = false;
   setTimeout(() => {
-    selectedProduct.value = null;
+    if (!isVariantModalOpen.value) selectedProduct.value = null;
+  }, 300);
+};
+
+const openVariantModal = (product) => {
+  selectedProduct.value = product;
+  isVariantModalOpen.value = true;
+};
+
+const closeVariantModal = () => {
+  isVariantModalOpen.value = false;
+  setTimeout(() => {
+    if (!isModalOpen.value) selectedProduct.value = null;
   }, 300);
 };
 
@@ -72,6 +86,7 @@ onMounted(() => {
       :has-more="currentPage < lastPage"
       @update-quantity="handleUpdateQuantity" 
       @view-product="openProductModal"
+      @open-variant-selector="openVariantModal"
       @load-more="loadMore"
     />
     
@@ -80,6 +95,13 @@ onMounted(() => {
       :product="selectedProduct" 
       :isOpen="isModalOpen" 
       @close="closeProductModal" 
+    />
+
+    <QuickVariantModal
+      v-if="selectedProduct"
+      :product="selectedProduct"
+      :isOpen="isVariantModalOpen"
+      @close="closeVariantModal"
     />
   </main>
 </template>

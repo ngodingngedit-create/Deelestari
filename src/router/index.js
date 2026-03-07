@@ -23,12 +23,12 @@ const router = createRouter({
             component: () => import('../views/CheckoutView.vue')
         },
         {
-            path: '/invoice',
+            path: '/merch-invoice',
             name: 'invoice',
             component: () => import('../views/InvoiceView.vue')
         },
         {
-            path: '/invoice/:invoiceId',
+            path: '/merch-invoice/:invoiceId',
             name: 'merch-invoice',
             component: () => import('../views/InvoiceView.vue')
         },
@@ -76,6 +76,11 @@ const router = createRouter({
         {
             path: '/bio.html',
             redirect: '/bio'
+        },
+        {
+            path: '/live-report',
+            name: 'live-report',
+            component: () => import('../views/LiveReportView.vue')
         }
     ],
     scrollBehavior(to, from, savedPosition) {
