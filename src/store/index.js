@@ -13,6 +13,14 @@ export const store = reactive({
     type: 'success' // 'success' or 'info'
   },
 
+  get baseUrl() {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    if (hostname.includes('deelestari.com') || hostname.includes('kolektix.com')) {
+      return 'https://api.kolektix.com';
+    }
+    return import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+  },
+
   get isAuthenticated() {
     return this.user !== null && this.token !== null;
   },

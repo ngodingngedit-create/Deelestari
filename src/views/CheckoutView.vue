@@ -86,7 +86,7 @@ const prevAddressStep = () => {
 // Fetch all products to get admin_fee and other details
 onMounted(async () => {
   try {
-    const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+    const baseUrl = store.baseUrl;
     const creatorId = baseUrl.includes('api.kolektix.com') ? 129 : [6, 48];
     const response = await fetch(`${baseUrl}/api/product?creator_id=${Array.isArray(creatorId) ? creatorId.join('&creator_id=') : creatorId}`);
     const result = await response.json();
@@ -100,7 +100,7 @@ const fetchProvinces = async () => {
   if (provinces.value.length > 0) return;
   loadingProvinces.value = true;
   try {
-    const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+    const baseUrl = store.baseUrl;
     const response = await fetch(`${baseUrl}/api/province`);
     const result = await response.json();
     provinces.value = result.data || [];
@@ -115,7 +115,7 @@ const fetchCities = async (provinceId) => {
   if (!provinceId) return;
   loadingCities.value = true;
   try {
-    const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+    const baseUrl = store.baseUrl;
     const response = await fetch(`${baseUrl}/api/city?province_id=${provinceId}`);
     const result = await response.json();
     cities.value = result.data || [];
@@ -455,7 +455,7 @@ const fetchShippingRates = async () => {
   selectedRate.value = null;
 
   try {
-    const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+    const baseUrl = store.baseUrl;
     
     // Calculate total weight based on product data
     const totalWeight = enrichedCart.value.reduce((sum, item) => sum + (item.quantity * item.weight), 0);
@@ -537,7 +537,7 @@ const placeOrder = async () => {
   store.checkoutLoading = true;
   
   try {
-    const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+    const baseUrl = store.baseUrl;
     const totalWeight = enrichedCart.value.reduce((sum, item) => sum + (item.quantity * item.weight), 0);
     const mapCourierType = (type) => {
       if (!type) return 'reg';

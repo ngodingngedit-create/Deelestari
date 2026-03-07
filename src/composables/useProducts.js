@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { store } from '../store';
 
 export function useProducts() {
     const products = ref([]);
@@ -15,7 +16,7 @@ export function useProducts() {
         if (creatorId !== null) creatorIdRef.value = creatorId;
 
         try {
-            const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+            const baseUrl = store.baseUrl;
             let url = `${baseUrl}/api/product?page=${page}`;
 
             // Handle dynamic creator_id based on environment
