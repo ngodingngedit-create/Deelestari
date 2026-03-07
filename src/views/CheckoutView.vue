@@ -126,6 +126,12 @@ const fetchCities = async (provinceId) => {
   }
 };
 
+const handleProvinceChange = async (provinceId) => {
+  addressForm.value.cityName = '';
+  addressForm.value.zip = '';
+  await fetchCities(provinceId);
+};
+
 const openAddressModal = () => {
   showAddressModal.value = true;
   addressStep.value = 1; // Reset to step 1
@@ -460,9 +466,12 @@ const fetchShippingRates = async () => {
     // Calculate total weight based on product data
     const totalWeight = enrichedCart.value.reduce((sum, item) => sum + (item.quantity * item.weight), 0);
 
-    const response = await fetch(`${baseUrl}/api/shipping/cek-all-ongkir`, {
+    const response = await fetch(`${baseUrl}/api/shipping/cek-all-ongkir/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
       body: JSON.stringify({
         origin_postal_code: "16511",
         destination_postal_code: formData.value.zip,
@@ -609,10 +618,11 @@ const placeOrder = async () => {
       microsite_url: 'https://store.deelestari.com'
     };
 
-    const response = await fetch(`${baseUrl}/api/order-product`, {
+    const response = await fetch(`${baseUrl}/api/order-product/`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       body: JSON.stringify(payload)
     });
@@ -998,7 +1008,7 @@ const placeOrder = async () => {
                <div class="form-group">
                  <label>Provinsi</label>
                  <div class="custom-select-wrapper">
-                   <select v-model="addressForm.provinceId" @change="fetchCities(addressForm.provinceId)" class="custom-select">
+                   <select v-model="addressForm.provinceId" @change="handleProvinceChange(addressForm.provinceId)" class="custom-select">
                      <option value="" disabled>Pilih Provinsi</option>
                      <option v-for="prov in provinces" :key="prov.id" :value="prov.id">{{ prov.name }}</option>
                    </select>
