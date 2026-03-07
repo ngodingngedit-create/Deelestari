@@ -401,11 +401,23 @@ const availableStores = computed(() => {
  const enrichedCart = computed(() => {
   return store.cart.map(item => {
     const product = allProducts.value.find(p => p.id == item.id);
-    let weight = product ? parseFloat(product.weight || 1000) : 1000;
+    let weight = 1000;
     
-    // Fallback to variant weight if top-level is 0
-    if (product && weight === 0 && product.product_varian && product.product_varian.length > 0) {
-      weight = parseFloat(product.product_varian[0].weight || 1000);
+    if (product) {
+      weight = parseFloat(product.weight || 0);
+      
+      // Look for the specific variant weight if a variant was selected
+      if (item.variant_id && product.product_varian) {
+        const variant = product.product_varian.find(v => v.id == item.variant_id);
+        if (variant && variant.weight) {
+          weight = parseFloat(variant.weight);
+        }
+      }
+      
+      // Fallback if weight is still 0 or invalid
+      if (!weight || isNaN(weight) || weight <= 0) {
+        weight = 1000;
+      }
     }
 
     return {
@@ -463,8 +475,9 @@ const fetchShippingRates = async () => {
   try {
     const baseUrl = store.baseUrl;
     
-    // Calculate total weight based on product data
-    const totalWeight = enrichedCart.value.reduce((sum, item) => sum + (item.quantity * item.weight), 0);
+    // Calculate total weight based on product data, ensuring it's an integer >= 1
+    let totalWeight = enrichedCart.value.reduce((sum, item) => sum + (item.quantity * item.weight), 0);
+    totalWeight = Math.max(1, parseInt(totalWeight || 0));
 
     const response = await fetch(`${baseUrl}/api/shipping/cek-all-ongkir/`, {
       method: 'POST',
@@ -547,7 +560,8 @@ const placeOrder = async () => {
   
   try {
     const baseUrl = store.baseUrl;
-    const totalWeight = enrichedCart.value.reduce((sum, item) => sum + (item.quantity * item.weight), 0);
+    let totalWeight = enrichedCart.value.reduce((sum, item) => sum + (item.quantity * item.weight), 0);
+    totalWeight = Math.max(1, parseInt(totalWeight || 0));
     const mapCourierType = (type) => {
       if (!type) return 'reg';
       const t = type.toLowerCase();
