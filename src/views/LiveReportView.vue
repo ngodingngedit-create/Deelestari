@@ -289,6 +289,15 @@ const fetchData = async (page = 1) => {
         if (transData.status) {
             transactions.value = transData.data.transactions;
             pagination.value = transData.data.pagination;
+            
+            // Calculate specific counts from current transactions data
+            summary.value.paid_count = transactions.value.filter(t => 
+                t.transaction_status_id === 2 || t.transaction_status?.name?.toLowerCase() === 'paid'
+            ).length;
+            
+            summary.value.cancelled_count = transactions.value.filter(t => 
+                t.transaction_status?.name?.toLowerCase() === 'expired'
+            ).length;
         }
     } catch (e) {
         console.error(e);
@@ -745,7 +754,26 @@ h1 {
 }
 
 @media (max-width: 768px) {
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .report-container { padding: 20px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .report-container { padding: 15px; }
+  h1 { font-size: 1.5rem; text-align: center; }
+  .subtitle { text-align: center; font-size: 0.9rem; margin-bottom: 20px; }
+  
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
+    margin: 0 -15px;
+    padding: 0 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .stat-card { padding: 15px; flex-direction: row; align-items: center; justify-content: flex-start; text-align: left; gap: 15px; }
+  .stat-icon { width: 40px; height: 40px; margin: 0; }
+  .stat-content { display: flex; flex-direction: column; }
+  .stat-value { font-size: 1.2rem; }
+  .badge-count { font-size: 0.8rem; padding: 4px 10px; }
 }
 </style>
