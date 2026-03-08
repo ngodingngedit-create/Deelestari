@@ -225,6 +225,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useProducts } from '../composables/useProducts';
+import { store } from '../store';
 
 const loading = ref(true);
 const transactions = ref([]);
@@ -247,8 +248,8 @@ const stockResult = ref(null);
 
 const { products, fetchProducts } = useProducts();
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
-const SLUG = '8mzptkrp1u'; 
+const API_BASE_URL = store.baseUrl;
+const SLUG = store.baseUrl.includes('api.kolektix.com') ? 'quo8xyabgs' : '8mzptkrp1u'; 
 const creatorInfo = ref(null);
 
 const findCreatorForProduct = (productId) => {

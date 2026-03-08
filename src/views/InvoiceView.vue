@@ -11,6 +11,7 @@ const { t } = useLanguage();
 const loading = ref(false);
 const error = ref(null);
 const orderData = ref(null);
+const isDownloading = ref(false);
 
 const order = computed(() => orderData.value);
 
@@ -121,6 +122,42 @@ const fetchOrder = async (id) => {
         error.value = 'Gagal memuat data invoice';
     } finally {
         loading.value = false;
+    }
+};
+
+const downloadInvoice = async () => {
+    if (!order.value || !order.value.id) return;
+    
+    isDownloading.value = true;
+    try {
+        const baseUrl = import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
+        const response = await fetch(`${baseUrl}/api/order-product/download/${order.value.id}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        if (blob.size === 0) {
+            throw new Error("Empty file downloaded");
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Invoice-${order.value.id}.pdf`; // Optional: set an explicit download name
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        store.showNotification(t('invoiceDownloaded') || 'Invoice berhasil diunduh', 'success');
+    } catch (err) {
+        console.error('Download invoice error:', err);
+        store.showNotification('Gagal mengunduh invoice', 'error');
+    } finally {
+        isDownloading.value = false;
     }
 };
 
@@ -236,6 +273,19 @@ onMounted(async () => {
 
       <!-- Action -->
       <div class="invoice-actions">
+        <button class="download-btn" @click="downloadInvoice" :disabled="isDownloading">
+            <template v-if="isDownloading">
+                Mengunduh...
+            </template>
+            <template v-else>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download Invoice
+            </template>
+        </button>
         <button class="home-btn" @click="router.push('/')">{{ t('kembali') }}</button>
       </div>
 
@@ -427,7 +477,38 @@ onMounted(async () => {
 }
 
 .invoice-actions {
-  text-align: center;
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 30px;
+}
+
+.download-btn {
+  background: transparent;
+  color: var(--text-light, #F4F1EC);
+  border: 1px solid var(--secondary-accent, #9e4d3d);
+  padding: 14px 24px;
+  border-radius: 50px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.download-btn:hover:not(:disabled) {
+  background: rgba(158, 77, 61, 0.1);
+  transform: translateY(-2px);
+}
+
+.download-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  border-color: #666;
+  color: #888;
 }
 
 .home-btn {
