@@ -556,5 +556,10 @@ const totalPrice = computed(() => {
   .product-actions-container {
     padding-bottom: env(safe-area-inset-bottom, 20px); /* Account for mobile browser bars if needed */
   }
+
+  .header-actions {
+    margin-right: -10px; /* Push to the far right */
+    margin-top: -10px; /* Optional: push closer to the corner/top considering smaller padding */
+  }
 }
 </style>

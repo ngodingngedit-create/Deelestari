@@ -60,8 +60,8 @@ export function useProducts() {
                         id: item.id,
                         title: item.product_name,
                         author: item.creator ? item.creator.name : 'Dee Lestari',
-                        category: 'fiksi', // Default or map if possible
-                        categoryDisplay: 'Fiksi',
+                        category: 'merchandise', // Default or map if possible
+                        categoryDisplay: 'Merchandise',
                         year: new Date(item.created_at).getFullYear(),
                         price: price,
                         description: item.description.replace(/<[^>]*>/g, ''), // Strip HTML tags
