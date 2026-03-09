@@ -43,12 +43,12 @@
         </div>
 
         <div class="stat-card">
-          <div class="stat-icon transactions-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+          <div class="stat-icon success-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
           </div>
           <div class="stat-content">
-            <span class="stat-label">TOTAL TRANSAKSI</span>
-            <span class="stat-value">{{ summary.total_transactions }}</span>
+            <span class="stat-label">BERHASIL</span>
+            <span class="stat-value">{{ summary.paid_count }}</span>
           </div>
         </div>
 
@@ -63,22 +63,22 @@
         </div>
 
         <div class="stat-card">
-          <div class="stat-icon success-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-label">BERHASIL</span>
-            <span class="stat-value">{{ summary.paid_count }}</span>
-          </div>
-        </div>
-
-        <div class="stat-card">
           <div class="stat-icon failed-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
           </div>
           <div class="stat-content">
             <span class="stat-label">GAGAL (EXPIRED)</span>
             <span class="stat-value">{{ summary.cancelled_count }}</span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon transactions-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-label">TOTAL TRANSAKSI</span>
+            <span class="stat-value">{{ summary.total_transactions }}</span>
           </div>
         </div>
       </div>
@@ -103,14 +103,16 @@
                 <th>STATUS</th>
                 <th>QTY</th>
                 <th>GRAND TOTAL</th>
-                <th>STATUS PENGAMBILAN</th>
+                <th>STATUS PENGIRIMAN</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(item, index) in transactions" :key="item.id">
                 <td>{{ (pagination.current_page - 1) * pagination.per_page + index + 1 }}</td>
                 <td>
-                  <span class="invoice-no">{{ item.invoice_no }}</span>
+                  <a :href="getInvoiceLink(item.invoice_no)" target="_blank" class="invoice-no-link">
+                    <span class="invoice-no">{{ item.invoice_no }}</span>
+                  </a>
                 </td>
                 <td>
                   <div class="customer-info">
@@ -149,9 +151,9 @@
                 <td>
                   <span 
                     class="pickup-badge" 
-                    :class="item.is_pickup === 1 ? 'is-taken' : 'not-taken'"
+                    :class="getDeliveryStatusClass(item)"
                   >
-                    {{ item.is_pickup === 1 ? 'Sudah Diambil' : 'Belum Diambil' }}
+                    {{ getDeliveryStatusText(item) }}
                   </span>
                 </td>
               </tr>
@@ -275,6 +277,31 @@ const formatCurrency = (val) => {
     return parseInt(val).toLocaleString('id-ID');
 };
 
+const getInvoiceLink = (invoiceNo) => {
+    const domain = API_BASE_URL.includes('api.kolektix.com') ? 'kolektix.com' : 'kolektix.cloud';
+    return `https://${domain}/merch-invoice/${invoiceNo}`;
+};
+
+const getDeliveryStatusText = (item) => {
+    if (item.transaction_status?.name?.toLowerCase() === 'expired') {
+        return 'Tidak Terkirim';
+    }
+    if (item.latest_manifest) {
+        return item.latest_manifest.delivery_status;
+    }
+    return 'Sedang Diproses';
+};
+
+const getDeliveryStatusClass = (item) => {
+    if (item.transaction_status?.name?.toLowerCase() === 'expired') {
+        return 'not-taken';
+    }
+    if (item.latest_manifest) {
+        return 'is-taken';
+    }
+    return 'not-taken';
+};
+
 const fetchData = async (page = 1) => {
     loading.value = true;
     try {
@@ -290,13 +317,20 @@ const fetchData = async (page = 1) => {
             transactions.value = transData.data.transactions;
             pagination.value = transData.data.pagination;
             
-            // Calculate specific counts from current transactions data
-            summary.value.paid_count = transactions.value.filter(t => 
+            // Calculate specific counts and calculate total_revenue for paid transactions
+            const paidTransactions = transactions.value.filter(t => 
                 t.transaction_status_id === 2 || t.transaction_status?.name?.toLowerCase() === 'paid'
-            ).length;
+            );
+            
+            summary.value.paid_count = paidTransactions.length;
+            summary.value.total_revenue = paidTransactions.reduce((sum, t) => sum + parseInt(t.grandtotal || 0), 0);
             
             summary.value.cancelled_count = transactions.value.filter(t => 
-                t.transaction_status?.name?.toLowerCase() === 'expired'
+                t.transaction_status?.name?.toLowerCase() === 'expired' || t.transaction_status?.name?.toLowerCase() === 'cancelled'
+            ).length;
+            
+            summary.value.pending_count = transactions.value.filter(t => 
+                t.transaction_status_id === 1 || t.transaction_status?.name?.toLowerCase() === 'unpaid' || t.transaction_status?.name?.toLowerCase() === 'pending'
             ).length;
         }
     } catch (e) {
@@ -336,10 +370,11 @@ const handleScan = async () => {
 };
 
 const exportToExcel = () => {
-    let csv = 'Invoice,Customer,Products,Total Qty,Grand Total,Status,Pengambilan\n';
+    let csv = 'Invoice,Customer,Products,Total Qty,Grand Total,Status,Pengiriman\n';
     transactions.value.forEach(t => {
         const prods = t.items.map(i => `${i.product_name} (${i.qty})`).join(' | ');
-        csv += `${t.invoice_no},${t.customer?.name || 'Guest'},"${prods}",${t.total_qty},${t.grandtotal},${t.transaction_status?.name},${t.is_pickup === 1 ? 'Sudah' : 'Belum'}\n`;
+        const deliveryStatus = getDeliveryStatusText(t);
+        csv += `${t.invoice_no},${t.customer?.name || 'Guest'},"${prods}",${t.total_qty},${t.grandtotal},${t.transaction_status?.name},"${deliveryStatus}"\n`;
     });
     
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -599,10 +634,20 @@ h1 {
 .premium-table tr td:first-child { border-radius: 15px 0 0 15px; }
 .premium-table tr td:last-child { border-radius: 0 15px 15px 0; }
 
+.invoice-no-link {
+  text-decoration: none;
+}
+
 .invoice-no {
   color: #1DA1F2;
   font-weight: 800;
   font-family: inherit;
+  transition: all 0.3s ease;
+}
+
+.invoice-no-link:hover .invoice-no {
+  color: #fff;
+  text-decoration: underline;
 }
 
 .customer-info {
@@ -644,10 +689,13 @@ h1 {
 }
 
 .pickup-badge {
+  display: inline-block;
   padding: 8px 16px;
   border-radius: 10px;
   font-size: 0.85rem;
   font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .pickup-badge.is-taken { background: rgba(46, 204, 113, 0.1); color: #2ecc71; }

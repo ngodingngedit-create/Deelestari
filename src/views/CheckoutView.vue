@@ -571,11 +571,11 @@ const placeOrder = async () => {
     };
 
     const payload = {
-      user_id: baseUrl.includes('api.kolektix.com') ? 11367 : 6,
+      user_id: null,
       name_pemesan: formData.value.fullName,
       email_pemesan: formData.value.email,
       phone_pemesan: formData.value.phone,
-      creator_id: baseUrl.includes('api.kolektix.com') ? 135 : 6,
+      creator_id: null,
       total_price: subtotal.value - totalDiscount.value,
       grandtotal: total.value,
       admin_fee: totalAdminFee.value,
@@ -617,7 +617,7 @@ const placeOrder = async () => {
         price: shippingCost.value
       },
       address: {
-        user_id: baseUrl.includes('api.kolektix.com') ? 11367 : 12,
+        user_id: null,
         is_main_address: 1,
         province_id: formData.value.provinceId || "0",
         city_id: formData.value.cityId || "0",
