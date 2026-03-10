@@ -86,9 +86,33 @@
       <!-- Transactions Table Section -->
       <div class="transactions-section">
         <div class="section-header">
-          <h2>Daftar Transaksi</h2>
-          <div class="total-info">
-            <div class="badge-count">{{ summary.total_transactions }} Transaksi</div>
+          <div class="header-main">
+            <h2>Daftar Transaksi</h2>
+            <div class="total-info">
+              <div class="badge-count">{{ summary.total_transactions }} Transaksi</div>
+            </div>
+          </div>
+          
+          <div class="header-filters">
+            <div class="search-box">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input 
+                type="text" 
+                v-model="searchQuery" 
+                placeholder="Cari Invoice atau Nama..." 
+                @input="handleSearch"
+                class="search-input"
+              >
+            </div>
+            
+            <div class="filter-box">
+              <select v-model="statusFilter" @change="handleFilter" class="filter-select">
+                <option value="">Semua Status</option>
+                <option value="paid">Paid</option>
+                <option value="pending">Pending</option>
+                <option value="expired">Expired</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -244,6 +268,10 @@ const pagination = ref({
     last_page: 1
 });
 
+const searchQuery = ref('');
+const statusFilter = ref('');
+let searchTimeout = null;
+
 const showStockModal = ref(false);
 const scannedCode = ref('');
 const stockResult = ref(null);
@@ -311,33 +339,86 @@ const fetchData = async (page = 1) => {
         if (sumData.status) summary.value = sumData.data.summary;
 
         // Transactions
-        const transResp = await fetch(`${API_BASE_URL}/api/order-product/creator/${SLUG}/transactions?page=${page}&per_page=20`);
+        let url = `${API_BASE_URL}/api/order-product/creator/${SLUG}/transactions?page=${page}&per_page=20`;
+        if (searchQuery.value) url += `&search=${encodeURIComponent(searchQuery.value)}`;
+        
+        // Try mapping status names to IDs for API if possible
+        if (statusFilter.value) {
+            const statusMap = { 'pending': 1, 'paid': 2, 'expired': 4 };
+            const statusId = statusMap[statusFilter.value];
+            if (statusId) url += `&transaction_status_id=${statusId}`;
+            // Keep status string too just in case
+            url += `&status=${statusFilter.value}`;
+        }
+        
+        const transResp = await fetch(url);
         const transData = await transResp.json();
         if (transData.status) {
-            transactions.value = transData.data.transactions;
-            pagination.value = transData.data.pagination;
+            let fetchedTransactions = transData.data.transactions;
+            const paginationData = transData.data.pagination;
             
-            // Calculate specific counts and calculate total_revenue for paid transactions
-            const paidTransactions = transactions.value.filter(t => 
+            // Local fallback filtering to ensure UI consistency if API ignores filter
+            if (statusFilter.value) {
+                fetchedTransactions = fetchedTransactions.filter(t => {
+                    const statusName = t.transaction_status?.name?.toLowerCase() || '';
+                    if (statusFilter.value === 'paid') return t.transaction_status_id === 2 || statusName === 'paid';
+                    if (statusFilter.value === 'pending') return t.transaction_status_id === 1 || statusName === 'pending' || statusName === 'unpaid';
+                    if (statusFilter.value === 'expired') {
+                        return t.transaction_status_id === 4 || 
+                               statusName === 'expired' || 
+                               statusName === 'cancelled' || 
+                               statusName === 'canceled' || 
+                               statusName === 'failed' || 
+                               statusName.includes('gagal');
+                    }
+                    return true;
+                });
+            }
+
+            transactions.value = fetchedTransactions;
+            pagination.value = paginationData;
+            
+            // Calculate summary stats BASED ON THE CURRENT TABLE DATA (Current Page)
+            // as requested: "berdasarkan tabel aja, yang ada di tabel yang dihitung"
+            const paidOnPage = transactions.value.filter(t => 
                 t.transaction_status_id === 2 || t.transaction_status?.name?.toLowerCase() === 'paid'
             );
             
-            summary.value.paid_count = paidTransactions.length;
-            summary.value.total_revenue = paidTransactions.reduce((sum, t) => sum + parseInt(t.grandtotal || 0), 0);
-            
-            summary.value.cancelled_count = transactions.value.filter(t => 
-                t.transaction_status?.name?.toLowerCase() === 'expired' || t.transaction_status?.name?.toLowerCase() === 'cancelled'
-            ).length;
+            summary.value.paid_count = paidOnPage.length;
+            summary.value.total_revenue = paidOnPage.reduce((sum, t) => sum + parseInt(t.grandtotal || 0), 0);
             
             summary.value.pending_count = transactions.value.filter(t => 
-                t.transaction_status_id === 1 || t.transaction_status?.name?.toLowerCase() === 'unpaid' || t.transaction_status?.name?.toLowerCase() === 'pending'
+                t.transaction_status_id === 1 || 
+                t.transaction_status?.name?.toLowerCase() === 'unpaid' || 
+                t.transaction_status?.name?.toLowerCase() === 'pending'
             ).length;
+            
+            summary.value.cancelled_count = transactions.value.filter(t => 
+                t.transaction_status_id === 4 || 
+                t.transaction_status?.name?.toLowerCase() === 'expired' || 
+                t.transaction_status?.name?.toLowerCase() === 'cancelled' ||
+                t.transaction_status?.name?.toLowerCase() === 'canceled' ||
+                t.transaction_status?.name?.toLowerCase() === 'failed'
+            ).length;
+
+            summary.value.total_transactions = transactions.value.length;
         }
     } catch (e) {
         console.error(e);
     } finally {
         loading.value = false;
     }
+};
+
+const handleSearch = () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        fetchData(1);
+    }, 500);
+};
+
+const handleFilter = () => {
+    fetchData(1);
 };
 
 const handleScan = async () => {
@@ -590,11 +671,84 @@ h1 {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 30px;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.header-main {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.header-filters {
+  display: flex;
+  gap: 15px;
+  flex-grow: 1;
+  justify-content: flex-end;
+}
+
+.search-box {
+  position: relative;
+  flex-grow: 1;
+  max-width: 400px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #555;
+}
+
+.search-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 15px 12px 45px;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+}
+
+.search-input:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #1DA1F2;
+  box-shadow: 0 0 15px rgba(29, 161, 242, 0.2);
+}
+
+.filter-box {
+  min-width: 150px;
+}
+
+.filter-select {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 15px;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 15px center;
+  background-size: 16px;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #1DA1F2;
 }
 
 .section-header h2 {
   font-size: 1.5rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .badge-count {
