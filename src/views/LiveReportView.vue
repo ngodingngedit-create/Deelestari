@@ -105,13 +105,35 @@
               >
             </div>
             
-            <div class="filter-box">
-              <select v-model="statusFilter" @change="handleFilter" class="filter-select">
-                <option value="">Semua Status</option>
-                <option value="paid">Paid</option>
-                <option value="pending">Pending</option>
-                <option value="expired">Expired</option>
-              </select>
+            <div class="custom-dropdown-container" v-click-outside="closeDropdown">
+              <div class="custom-dropdown-header" @click="toggleDropdown" :class="{ 'is-active': isDropdownOpen }">
+                <span class="selected-label">{{ getStatusLabel(statusFilter) }}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="dropdown-arrow"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </div>
+              <transition name="fade">
+                <div v-if="isDropdownOpen" class="custom-dropdown-options">
+                  <div 
+                    class="dropdown-option" 
+                    :class="{ 'is-selected': statusFilter === '' }"
+                    @click="selectStatus('')"
+                  >Semua Status</div>
+                  <div 
+                    class="dropdown-option" 
+                    :class="{ 'is-selected': statusFilter === 'paid' }"
+                    @click="selectStatus('paid')"
+                  >Paid</div>
+                  <div 
+                    class="dropdown-option" 
+                    :class="{ 'is-selected': statusFilter === 'pending' }"
+                    @click="selectStatus('pending')"
+                  >Pending</div>
+                  <div 
+                    class="dropdown-option" 
+                    :class="{ 'is-selected': statusFilter === 'expired' }"
+                    @click="selectStatus('expired')"
+                  >Expired</div>
+                </div>
+              </transition>
             </div>
           </div>
         </div>
@@ -150,7 +172,10 @@
                     <div v-for="(p, pi) in item.items" :key="pi" class="product-item-row">
                       <div class="product-creator">{{ findCreatorForProduct(p.product_id) }}</div>
                       <div class="product-detail">
-                        {{ p.product_name }} {{ p.variant_name ? `(${p.variant_name})` : '' }}
+                        <div class="product-name-text">{{ p.product_name }}</div>
+                        <div v-if="p.variant_name" class="product-variant-info">
+                          Varian: <span>{{ p.variant_name }}</span>
+                        </div>
                         <span class="product-meta">({{ p.qty }} x Rp {{ formatCurrency(p.price) }})</span>
                       </div>
                     </div>
@@ -275,6 +300,47 @@ let searchTimeout = null;
 const showStockModal = ref(false);
 const scannedCode = ref('');
 const stockResult = ref(null);
+
+const isDropdownOpen = ref(false);
+
+const toggleDropdown = () => {
+    isDropdownOpen.value = !isDropdownOpen.value;
+};
+
+const closeDropdown = () => {
+    isDropdownOpen.value = false;
+};
+
+const selectStatus = (status) => {
+    statusFilter.value = status;
+    isDropdownOpen.value = false;
+    handleFilter();
+};
+
+const getStatusLabel = (status) => {
+    const labels = {
+        '': 'Semua Status',
+        'paid': 'Paid',
+        'pending': 'Pending',
+        'expired': 'Expired'
+    };
+    return labels[status] || 'Semua Status';
+};
+
+// Custom directive for clicking outside
+const vClickOutside = {
+    mounted(el, binding) {
+        el.clickOutsideEvent = (event) => {
+            if (!(el === event.target || el.contains(event.target))) {
+                binding.value();
+            }
+        };
+        document.addEventListener('click', el.clickOutsideEvent);
+    },
+    unmounted(el) {
+        document.removeEventListener('click', el.clickOutsideEvent);
+    },
+};
 
 const { products, fetchProducts } = useProducts();
 
@@ -453,7 +519,11 @@ const handleScan = async () => {
 const exportToExcel = () => {
     let csv = 'Invoice,Customer,Products,Total Qty,Grand Total,Status,Pengiriman\n';
     transactions.value.forEach(t => {
-        const prods = t.items.map(i => `${i.product_name} (${i.qty})`).join(' | ');
+        const prods = t.items.map(i => {
+            let name = i.product_name;
+            if (i.variant_name) name += ` [${i.variant_name}]`;
+            return `${name} (${i.qty})`;
+        }).join(' | ');
         const deliveryStatus = getDeliveryStatusText(t);
         csv += `${t.invoice_no},${t.customer?.name || 'Guest'},"${prods}",${t.total_qty},${t.grandtotal},${t.transaction_status?.name},"${deliveryStatus}"\n`;
     });
@@ -720,29 +790,86 @@ h1 {
   box-shadow: 0 0 15px rgba(29, 161, 242, 0.2);
 }
 
-.filter-box {
-  min-width: 150px;
+.custom-dropdown-container {
+  position: relative;
+  min-width: 180px;
+  z-index: 100;
 }
 
-.filter-select {
-  width: 100%;
+.custom-dropdown-header {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 12px 15px;
+  padding: 12px 20px;
   border-radius: 12px;
   color: #fff;
   font-size: 0.9rem;
   cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 15px center;
-  background-size: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.3s;
+  user-select: none;
 }
 
-.filter-select:focus {
-  outline: none;
+.custom-dropdown-header:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(29, 161, 242, 0.5);
+}
+
+.custom-dropdown-header.is-active {
   border-color: #1DA1F2;
+  box-shadow: 0 0 15px rgba(29, 161, 242, 0.2);
+}
+
+.dropdown-arrow {
+  transition: transform 0.3s;
+  color: #888;
+}
+
+.custom-dropdown-header.is-active .dropdown-arrow {
+  transform: rotate(180deg);
+  color: #1DA1F2;
+}
+
+.custom-dropdown-options {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  right: 0;
+  background: #111;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+}
+
+.dropdown-option {
+  padding: 12px 20px;
+  font-size: 0.9rem;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dropdown-option:hover {
+  background: rgba(29, 161, 242, 0.1);
+  color: #fff;
+}
+
+.dropdown-option.is-selected {
+  background: rgba(29, 161, 242, 0.2);
+  color: #1DA1F2;
+  font-weight: 700;
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 .section-header h2 {
@@ -827,11 +954,30 @@ h1 {
   font-size: 0.9rem;
   color: #ccc;
   font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.product-name-text {
+  color: #fff;
+}
+
+.product-variant-info {
+  font-size: 0.75rem;
+  color: #888;
+  font-weight: 500;
+}
+
+.product-variant-info span {
+  color: #3498db;
+  font-weight: 700;
 }
 
 .product-meta {
   color: #555;
   font-weight: 400;
+  margin-top: 2px;
 }
 
 .status-badge {
@@ -956,26 +1102,74 @@ h1 {
 }
 
 @media (max-width: 768px) {
-  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-  .report-container { padding: 15px; }
-  h1 { font-size: 1.5rem; text-align: center; }
-  .subtitle { text-align: center; font-size: 0.9rem; margin-bottom: 20px; }
-  
+  .section-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+  }
+
+  .header-main {
+    justify-content: space-between;
+  }
+
+  .header-filters {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .search-box, .custom-dropdown-container {
+    max-width: none;
+    width: 100%;
+    min-width: 0;
+  }
+
   .table-responsive {
-    overflow-x: auto;
+    margin: 0 -20px;
+    padding: 0 20px;
+    border-radius: 0;
     -webkit-overflow-scrolling: touch;
-    border-radius: 12px;
-    margin: 0 -15px;
-    padding: 0 15px;
+  }
+
+  .premium-table {
+    min-width: 800px; /* Force scroll but keep it readable */
+  }
+
+  .premium-table td {
+    padding: 15px 12px;
   }
 }
 
 @media (max-width: 480px) {
-  .stats-grid { grid-template-columns: 1fr; }
-  .stat-card { padding: 15px; flex-direction: row; align-items: center; justify-content: flex-start; text-align: left; gap: 15px; }
-  .stat-icon { width: 40px; height: 40px; margin: 0; }
-  .stat-content { display: flex; flex-direction: column; }
-  .stat-value { font-size: 1.2rem; }
-  .badge-count { font-size: 0.8rem; padding: 4px 10px; }
+  .stats-grid { 
+    grid-template-columns: 1fr; 
+    gap: 10px;
+  }
+  .stat-card { 
+    padding: 12px 15px; 
+    gap: 12px;
+  }
+  .stat-icon { 
+    width: 36px; 
+    height: 36px; 
+  }
+  .stat-label {
+    font-size: 0.65rem;
+  }
+  .stat-value { 
+    font-size: 1.1rem; 
+  }
+  .badge-count { 
+    font-size: 0.75rem; 
+    padding: 4px 10px; 
+  }
+  
+  .transactions-section {
+    padding: 20px 15px;
+    border-radius: 20px;
+  }
+
+  .section-header h2 {
+    font-size: 1.2rem;
+  }
 }
 </style>
