@@ -195,7 +195,7 @@
                 </td>
                 <td>{{ item.total_qty }}</td>
                 <td>
-                  <span class="price-val">Rp {{ formatCurrency(item.grandtotal) }}</span>
+                  <span class="price-val">Rp {{ formatCurrency((item.total_price || 0) + (item.delivery_price || 0)) }}</span>
                 </td>
                 <td>
                   <span 
@@ -451,7 +451,7 @@ const fetchData = async (page = 1) => {
             );
             
             summary.value.paid_count = paidOnPage.length;
-            summary.value.total_revenue = paidOnPage.reduce((sum, t) => sum + parseInt(t.grandtotal || 0), 0);
+            summary.value.total_revenue = paidOnPage.reduce((sum, t) => sum + (parseInt(t.total_price || 0) + parseInt(t.delivery_price || 0)), 0);
             
             summary.value.pending_count = transactions.value.filter(t => 
                 t.transaction_status_id === 1 || 
@@ -525,7 +525,8 @@ const exportToExcel = () => {
             return `${name} (${i.qty})`;
         }).join(' | ');
         const deliveryStatus = getDeliveryStatusText(t);
-        csv += `${t.invoice_no},${t.customer?.name || 'Guest'},"${prods}",${t.total_qty},${t.grandtotal},${t.transaction_status?.name},"${deliveryStatus}"\n`;
+        const calculatedGrandTotal = (parseInt(t.total_price || 0) + parseInt(t.delivery_price || 0));
+        csv += `${t.invoice_no},${t.customer?.name || 'Guest'},"${prods}",${t.total_qty},${calculatedGrandTotal},${t.transaction_status?.name},"${deliveryStatus}"\n`;
     });
     
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
