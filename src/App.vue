@@ -28,8 +28,8 @@ const toggleCart = () => {
   isCartOpen.value = !isCartOpen.value;
 };
 
-const handleUpdateQuantity = (productId, change) => {
-  store.updateQuantity(productId, change);
+const handleUpdateQuantity = (productId, change, variantId = null) => {
+  store.updateQuantity(productId, change, variantId);
 };
 
 const handleCheckout = () => {

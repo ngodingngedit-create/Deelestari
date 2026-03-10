@@ -50,9 +50,9 @@ const toggleDetail = () => {
           </div>
           <div class="detail-item-actions">
             <div class="detail-qty-control">
-              <button class="detail-qty-btn minus" @click="$emit('update-quantity', item.id, -1)">-</button>
+              <button class="detail-qty-btn minus" @click="$emit('update-quantity', item.id, -1, item.variant_id)">-</button>
               <span class="detail-qty-val">{{ item.quantity }}</span>
-              <button class="detail-qty-btn plus" @click="$emit('update-quantity', item.id, 1)">+</button>
+              <button class="detail-qty-btn plus" @click="$emit('update-quantity', item.id, 1, item.variant_id)">+</button>
             </div>
             <span class="detail-item-price">{{ formatRupiah(item.price * item.quantity) }}</span>
           </div>

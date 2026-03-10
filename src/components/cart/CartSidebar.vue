@@ -51,9 +51,9 @@ const formatRupiah = (amount) => {
             <h4 class="cart-item-title">{{ item.title }}</h4>
             <div class="cart-item-price" style="font-family: 'Poppins', sans-serif; font-weight: 700; font-size: 1rem; color: #9e4d3d; margin-bottom: 5px;">{{ formatRupiah(item.price) }}</div>
             <div class="cart-item-controls">
-              <button class="cart-qty-btn minus" @click="$emit('update-quantity', item.id, -1)">-</button>
+              <button class="cart-qty-btn minus" @click="$emit('update-quantity', item.id, -1, item.variant_id)">-</button>
               <span class="cart-item-qty">{{ item.quantity }}</span>
-              <button class="cart-qty-btn plus" @click="$emit('update-quantity', item.id, 1)">+</button>
+              <button class="cart-qty-btn plus" @click="$emit('update-quantity', item.id, 1, item.variant_id)">+</button>
             </div>
           </div>
         </div>

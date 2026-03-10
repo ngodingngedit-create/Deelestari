@@ -20,13 +20,13 @@ const selectedVariantId = ref(null);
 // Reset quantity when product changes or modal opens
 watch(() => props.product, (newProduct) => {
   quantity.value = 0;
-  selectedVariantId.value = newProduct.variants && newProduct.variants.length > 0 ? newProduct.variants[0].id : null;
+  selectedVariantId.value = null; // Don't auto-select
 });
 
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     quantity.value = 0;
-    selectedVariantId.value = props.product.variants && props.product.variants.length > 0 ? props.product.variants[0].id : null;
+    selectedVariantId.value = null; // Don't auto-select
   }
 });
 
@@ -157,9 +157,13 @@ const totalPrice = computed(() => {
               </div>
             </div>
             
-            <button class="add-to-cart-btn" @click="addToCart" :disabled="quantity === 0">
-              <span>{{ t('btnAddToCart') }}</span>
-              <span class="btn-total-price">{{ formatRupiah(totalPrice) }}</span>
+            <button 
+              class="add-to-cart-btn" 
+              @click="addToCart" 
+              :disabled="quantity === 0 || (product.variants && product.variants.length > 0 && !selectedVariantId)"
+            >
+              <span>{{ (product.variants && product.variants.length > 0 && !selectedVariantId) ? 'Pilih Varian' : t('btnAddToCart') }}</span>
+              <span v-if="quantity > 0" class="btn-total-price">{{ formatRupiah(totalPrice) }}</span>
             </button>
           </div>
         </div>
