@@ -18,6 +18,9 @@ const { t } = useLanguage();
 const isDetailOpen = ref(false);
 
 const totalPrice = computed(() => {
+  if (route.path === '/checkout' && store.checkoutGrandTotal > 0) {
+    return store.checkoutGrandTotal;
+  }
   return props.cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 });
 

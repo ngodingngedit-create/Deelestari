@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { store } from '../store';
 import { useLanguage } from '../composables/useLanguage';
@@ -22,7 +22,9 @@ const formData = ref({
   provinceId: '0',
   cityId: '0',
   latitude: '',
-  longitude: ''
+  longitude: '',
+  recipientName: '',
+  recipientPhone: ''
 });
 
 const selectedCourier = ref('Byteship');
@@ -316,8 +318,7 @@ const saveAddress = () => {
   const selectedCity = cities.value.find(c => c.name == addressForm.value.cityName);
   const provinceName = selectedProvince ? selectedProvince.name : '';
   
-  formData.value.fullName = addressForm.value.recipientName;
-  formData.value.phone = addressForm.value.phone;
+  formData.value.phone = formData.value.phone; // Keep existing customer phone
   formData.value.address = `${addressForm.value.detail}, ${addressForm.value.cityName}, ${provinceName}`;
   formData.value.city = addressForm.value.cityName;
   formData.value.zip = addressForm.value.zip;
@@ -325,6 +326,10 @@ const saveAddress = () => {
   formData.value.cityId = selectedCity ? selectedCity.id : '0';
   formData.value.latitude = addressForm.value.latitude;
   formData.value.longitude = addressForm.value.longitude;
+  
+  // Decouple recipient details from customer details
+  formData.value.recipientName = addressForm.value.recipientName;
+  formData.value.recipientPhone = addressForm.value.phone;
   
   showAddressModal.value = false;
   map = null;
@@ -610,8 +615,8 @@ const placeOrder = async () => {
         origin_longitude: 106.7689288865081,
         destination_latitude: parseFloat(formData.value.latitude) || -6.190000,
         destination_longitude: parseFloat(formData.value.longitude) || 106.830000,
-        name: formData.value.fullName,
-        phone: formData.value.phone,
+        name: formData.value.recipientName || formData.value.fullName,
+        phone: formData.value.recipientPhone || formData.value.phone,
         address: formData.value.address,
         weight: totalWeight,
         price: shippingCost.value
@@ -626,8 +631,8 @@ const placeOrder = async () => {
         zipcode: formData.value.zip || "15147",
         latitude: formData.value.latitude,
         longitude: formData.value.longitude,
-        nama_penerima: formData.value.fullName,
-        phone: formData.value.phone,
+        nama_penerima: formData.value.recipientName || formData.value.fullName,
+        phone: formData.value.recipientPhone || formData.value.phone,
         is_active: 1
       },
       success_redirect_url: `https://store.deelestari.com/merch-invoice/{invoice_merch}`,
@@ -685,6 +690,15 @@ const placeOrder = async () => {
     store.checkoutLoading = false;
   }
 };
+
+// Sync total with global store for FloatingCartBar
+watch(total, (newTotal) => {
+  store.checkoutGrandTotal = newTotal;
+}, { immediate: true });
+
+onUnmounted(() => {
+  store.checkoutGrandTotal = 0;
+});
 </script>
 
 <template>
@@ -746,10 +760,10 @@ const placeOrder = async () => {
                           <div class="address-title-row">
                             <span class="address-label-text">{{ addressForm.addressLabel || 'Rumah' }}</span>
                             <span class="address-dot">·</span>
-                            <span class="address-recipient-name">{{ formData.fullName }}</span>
+                            <span class="address-recipient-name">{{ formData.recipientName || formData.fullName }}</span>
                           </div>
                           <div class="address-full-text">{{ formData.address }}</div>
-                          <div class="address-contact">{{ formData.phone }}</div>
+                          <div class="address-contact">{{ formData.recipientPhone || formData.phone }}</div>
                         </div>
                         <div class="address-action-col">
                           <button type="button" class="ganti-address-btn" @click="openAddressModal">Ganti</button>

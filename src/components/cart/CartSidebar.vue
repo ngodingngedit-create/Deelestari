@@ -49,6 +49,7 @@ const formatRupiah = (amount) => {
           <div class="cart-item-details">
             <div class="cart-item-author" style="font-size: 0.75rem; color: #888; margin-bottom: 2px;">{{ item.author }}</div>
             <h4 class="cart-item-title">{{ item.title }}</h4>
+            <div v-if="item.variant_name" class="cart-item-variant" style="font-size: 0.75rem; color: #888; background: #333; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 4px;">{{ item.variant_name }}</div>
             <div class="cart-item-price" style="font-family: 'Poppins', sans-serif; font-weight: 700; font-size: 1rem; color: #9e4d3d; margin-bottom: 5px;">{{ formatRupiah(item.price) }}</div>
             <div class="cart-item-controls">
               <button class="cart-qty-btn minus" @click="$emit('update-quantity', item.id, -1, item.variant_id)">-</button>

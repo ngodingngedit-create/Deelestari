@@ -6,6 +6,7 @@ export const store = reactive({
   token: null, // Track access token
   cart: [],
   lastOrder: null,
+  checkoutGrandTotal: 0,
   checkoutLoading: false,
   notification: {
     show: false,
