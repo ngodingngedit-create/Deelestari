@@ -12,7 +12,7 @@ const loading = ref(false);
 const error = ref(null);
 const orderData = ref(null);
 const isDownloading = ref(false);
-
+const activeTab = ref('details');
 const order = computed(() => orderData.value);
 
 const formatDate = (date) => {
@@ -98,7 +98,8 @@ const mapOrderData = async (data) => {
         shipping,
         adminFee: adminFee > 0 ? adminFee : 0,
         discount,
-        total
+        total,
+        latest_manifest: data.latest_manifest || null
     };
 };
 
@@ -162,6 +163,10 @@ const downloadInvoice = async () => {
 };
 
 onMounted(async () => {
+  if (route.query.tab === 'delivery') {
+    activeTab.value = 'delivery';
+  }
+  
   if (store.lastOrder) {
     orderData.value = await mapOrderData(store.lastOrder);
   } else if (route.params.invoiceId) {
@@ -200,74 +205,125 @@ onMounted(async () => {
         <p>{{ t('invoiceSubtitle') }}</p>
       </div>
 
-      <!-- Order Meta -->
-      <div class="order-meta-card">
-        <div class="meta-row">
-          <span class="meta-label">{{ t('noPesanan') }}</span>
-          <span class="meta-value copyable">#{{ order.id }}</span>
-        </div>
-        <div class="meta-row">
-          <span class="meta-label">{{ t('waktuPesan') }}</span>
-          <span class="meta-value">{{ formatDate(order.date) }}</span>
-        </div>
-        <div class="meta-row">
-          <span class="meta-label">{{ t('metodeBayar') }}</span>
-          <span class="meta-value">{{ order.paymentMethod }}</span>
-        </div>
+      <!-- Tab Navigation -->
+      <div class="invoice-tabs">
+        <button 
+          class="tab-btn" 
+          :class="{ active: activeTab === 'details' }"
+          @click="activeTab = 'details'"
+        >
+          Rincian Pesanan
+        </button>
+        <button 
+          class="tab-btn" 
+          :class="{ active: activeTab === 'delivery' }"
+          @click="activeTab = 'delivery'"
+        >
+          Status Pengiriman
+        </button>
       </div>
 
-      <!-- Order Items -->
-      <div class="invoice-section">
-        <h3>{{ t('rincianBarang') }}</h3>
-        <div class="invoice-items">
-          <div v-for="item in order.items" :key="item.id" class="invoice-item">
-            <div class="item-visual" :style="{ backgroundImage: `url(${item.image})` }"></div>
-            <div class="item-details">
-              <h4>{{ item.title }}</h4>
-              <p>{{ t('qty') }}: {{ item.quantity }}</p>
-              <p v-if="item.note" class="item-note">{{ t('catatan') }}: {{ item.note }}</p>
+      <div v-if="activeTab === 'details'">
+        <!-- Order Meta -->
+        <div class="order-meta-card">
+          <div class="meta-row">
+            <span class="meta-label">{{ t('noPesanan') }}</span>
+            <span class="meta-value copyable">#{{ order.id }}</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">{{ t('waktuPesan') }}</span>
+            <span class="meta-value">{{ formatDate(order.date) }}</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">{{ t('metodeBayar') }}</span>
+            <span class="meta-value">{{ order.paymentMethod }}</span>
+          </div>
+        </div>
+
+        <!-- Order Items -->
+        <div class="invoice-section">
+          <h3>{{ t('rincianBarang') }}</h3>
+          <div class="invoice-items">
+            <div v-for="item in order.items" :key="item.id" class="invoice-item">
+              <div class="item-visual" :style="{ backgroundImage: `url(${item.image})` }"></div>
+              <div class="item-details">
+                <h4>{{ item.title }}</h4>
+                <p>{{ t('qty') }}: {{ item.quantity }}</p>
+                <p v-if="item.note" class="item-note">{{ t('catatan') }}: {{ item.note }}</p>
+              </div>
+              <div class="item-price">
+                {{ formatRupiah(item.price * item.quantity) }}
+              </div>
             </div>
-            <div class="item-price">
-              {{ formatRupiah(item.price * item.quantity) }}
-            </div>
+          </div>
+        </div>
+
+        <!-- Customer Info -->
+        <div class="invoice-section">
+          <h3>{{ t('infoKirim') }}</h3>
+          <div class="customer-info">
+            <p><strong>{{ order.customer.fullName }}</strong></p>
+            <p>{{ order.customer.phone }}</p>
+            <p>{{ order.customer.email }}</p>
+            <p class="address">{{ order.customer.address }}</p>
+            <p v-if="order.customer.storeLocation"><strong>{{ t('ambilToko') }}</strong> {{ order.customer.storeLocation }}</p>
+          </div>
+        </div>
+
+        <!-- Totals -->
+        <div class="invoice-summary">
+          <div class="summary-row">
+            <span>{{ t('totalHarga') }}</span>
+            <span>{{ formatRupiah(order.subtotal) }}</span>
+          </div>
+          <div class="summary-row">
+            <span>{{ t('totalOngkir') }}</span>
+            <span>{{ formatRupiah(order.shipping) }}</span>
+          </div>
+          <div class="summary-row" v-if="order.adminFee > 0">
+            <span>Biaya Layanan</span>
+            <span>{{ formatRupiah(order.adminFee) }}</span>
+          </div>
+          <div class="summary-row" v-if="order.discount > 0">
+            <span>Discount</span>
+            <span class="discount-text">- {{ formatRupiah(order.discount) }}</span>
+          </div>
+          <div class="summary-divider"></div>
+          <div class="summary-total">
+            <span>{{ t('totalBayar') }}</span>
+            <span class="total-amount">{{ formatRupiah(order.total) }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Customer Info -->
-      <div class="invoice-section">
-        <h3>{{ t('infoKirim') }}</h3>
-        <div class="customer-info">
-          <p><strong>{{ order.customer.fullName }}</strong></p>
-          <p>{{ order.customer.phone }}</p>
-          <p>{{ order.customer.email }}</p>
-          <p class="address">{{ order.customer.address }}</p>
-          <p v-if="order.customer.storeLocation"><strong>{{ t('ambilToko') }}</strong> {{ order.customer.storeLocation }}</p>
+      <!-- Tracking Info (Delivery Tab) -->
+      <div v-if="activeTab === 'delivery'" class="delivery-tab-content">
+        <div class="invoice-section">
+          <h3>Live Status Pengiriman</h3>
+          <div v-if="order.latest_manifest" class="tracking-card">
+            <div class="tracking-header">
+              <span class="status-indicator"></span>
+              <span class="current-status">{{ order.latest_manifest.delivery_status }}</span>
+            </div>
+            <div class="tracking-details">
+              <p class="tracking-note">{{ order.latest_manifest.note }}</p>
+              <p class="tracking-time">{{ formatDate(order.latest_manifest.created_at) }}</p>
+            </div>
+          </div>
+          <div v-else class="no-tracking">
+            <div class="empty-icon">📦</div>
+            <p>Informasi pengiriman sedang diproses.</p>
+            <small>Resi akan muncul otomatis setelah paket diserahkan ke kurir.</small>
+          </div>
         </div>
-      </div>
 
-      <!-- Totals -->
-      <div class="invoice-summary">
-        <div class="summary-row">
-          <span>{{ t('totalHarga') }}</span>
-          <span>{{ formatRupiah(order.subtotal) }}</span>
-        </div>
-        <div class="summary-row">
-          <span>{{ t('totalOngkir') }}</span>
-          <span>{{ formatRupiah(order.shipping) }}</span>
-        </div>
-        <div class="summary-row" v-if="order.adminFee > 0">
-          <span>Biaya Layanan</span>
-          <span>{{ formatRupiah(order.adminFee) }}</span>
-        </div>
-        <div class="summary-row" v-if="order.discount > 0">
-          <span>Discount</span>
-          <span class="discount-text">- {{ formatRupiah(order.discount) }}</span>
-        </div>
-        <div class="summary-divider"></div>
-        <div class="summary-total">
-          <span>{{ t('totalBayar') }}</span>
-          <span class="total-amount">{{ formatRupiah(order.total) }}</span>
+        <div class="invoice-section">
+          <h3>Informasi Penerima</h3>
+          <div class="customer-info">
+            <p><strong>{{ order.customer.fullName }}</strong></p>
+            <p>{{ order.customer.phone }}</p>
+            <p class="address">{{ order.customer.address }}</p>
+          </div>
         </div>
       </div>
 
@@ -294,6 +350,104 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.invoice-tabs {
+  display: flex;
+  background: #1a1a1a;
+  padding: 4px;
+  border-radius: 12px;
+  margin-bottom: 30px;
+  border: 1px solid #333;
+}
+
+.tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #888;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  background: #333;
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.delivery-tab-content {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tracking-card {
+  background: #1a1a1a;
+  border-radius: 12px;
+  padding: 20px;
+  border-left: 4px solid var(--secondary-accent, #9e4d3d);
+}
+
+.tracking-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  background: var(--secondary-accent, #9e4d3d);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--secondary-accent, #9e4d3d);
+}
+
+.current-status {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+}
+
+.tracking-note {
+  font-size: 1rem;
+  color: #fff;
+  margin-bottom: 5px;
+}
+
+.tracking-time {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.no-tracking {
+  text-align: center;
+  padding: 40px 20px;
+  background: #1a1a1a;
+  border-radius: 12px;
+  border: 1px dashed #333;
+}
+
+.empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 15px;
+}
+
+.no-tracking p {
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.no-tracking small {
+  color: #666;
+}
 .invoice-page {
   padding: 60px 20px 100px;
   background-color: var(--bg-dark, #1B1B1B);

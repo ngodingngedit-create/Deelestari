@@ -156,7 +156,7 @@
               <tr v-for="(item, index) in transactions" :key="item.id">
                 <td>{{ (pagination.current_page - 1) * pagination.per_page + index + 1 }}</td>
                 <td>
-                  <a :href="getInvoiceLink(item.invoice_no)" target="_blank" class="invoice-no-link">
+                  <a :href="getInvoiceLink(item.invoice_no, 'delivery')" target="_blank" class="invoice-no-link">
                     <span class="invoice-no">{{ item.invoice_no }}</span>
                   </a>
                 </td>
@@ -195,7 +195,7 @@
                 </td>
                 <td>{{ item.total_qty }}</td>
                 <td>
-                  <span class="price-val">Rp {{ formatCurrency((item.total_price || 0) + (item.delivery_price || 0)) }}</span>
+                  <span class="price-val">Rp {{ formatCurrency(item.total_price || 0) }}</span>
                 </td>
                 <td>
                   <span 
@@ -371,9 +371,11 @@ const formatCurrency = (val) => {
     return parseInt(val).toLocaleString('id-ID');
 };
 
-const getInvoiceLink = (invoiceNo) => {
+const getInvoiceLink = (invoiceNo, tab = '') => {
     const domain = API_BASE_URL.includes('api.kolektix.com') ? 'kolektix.com' : 'kolektix.cloud';
-    return `https://${domain}/merch-invoice/${invoiceNo}`;
+    let url = `https://${domain}/merch-invoice/${invoiceNo}`;
+    if (tab) url += `?tab=${tab}`;
+    return url;
 };
 
 const getDeliveryStatusText = (item) => {
@@ -451,7 +453,7 @@ const fetchData = async (page = 1) => {
             );
             
             summary.value.paid_count = paidOnPage.length;
-            summary.value.total_revenue = paidOnPage.reduce((sum, t) => sum + (parseInt(t.total_price || 0) + parseInt(t.delivery_price || 0)), 0);
+            summary.value.total_revenue = paidOnPage.reduce((sum, t) => sum + parseInt(t.total_price || 0), 0);
             
             summary.value.pending_count = transactions.value.filter(t => 
                 t.transaction_status_id === 1 || 
@@ -525,7 +527,7 @@ const exportToExcel = () => {
             return `${name} (${i.qty})`;
         }).join(' | ');
         const deliveryStatus = getDeliveryStatusText(t);
-        const calculatedGrandTotal = (parseInt(t.total_price || 0) + parseInt(t.delivery_price || 0));
+        const calculatedGrandTotal = parseInt(t.total_price || 0);
         csv += `${t.invoice_no},${t.customer?.name || 'Guest'},"${prods}",${t.total_qty},${calculatedGrandTotal},${t.transaction_status?.name},"${deliveryStatus}"\n`;
     });
     
