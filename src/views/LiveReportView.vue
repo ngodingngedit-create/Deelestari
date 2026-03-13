@@ -289,7 +289,7 @@ const summary = ref({
 });
 const pagination = ref({
     current_page: 1,
-    per_page: 20,
+    per_page: 100,
     last_page: 1
 });
 
@@ -407,7 +407,7 @@ const fetchData = async (page = 1) => {
         if (sumData.status) summary.value = sumData.data.summary;
 
         // Transactions
-        let url = `${API_BASE_URL}/api/order-product/creator/${SLUG}/transactions?page=${page}&per_page=20`;
+        let url = `${API_BASE_URL}/api/order-product/creator/${SLUG}/transactions?page=${page}&per_page=100`;
         if (searchQuery.value) url += `&search=${encodeURIComponent(searchQuery.value)}`;
         
         // Try mapping status names to IDs for API if possible
@@ -452,7 +452,7 @@ const fetchData = async (page = 1) => {
                 t.transaction_status_id === 2 || t.transaction_status?.name?.toLowerCase() === 'paid'
             );
             
-            summary.value.paid_count = paidOnPage.length;
+            summary.value.paid_count = paidOnPage.reduce((sum, t) => sum + (parseInt(t.total_qty) || 0), 0);
             summary.value.total_revenue = paidOnPage.reduce((sum, t) => sum + parseInt(t.total_price || 0), 0);
             
             summary.value.pending_count = transactions.value.filter(t => 
