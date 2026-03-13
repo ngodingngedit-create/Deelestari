@@ -2,7 +2,7 @@
   <div class="live-report-page">
     <main class="report-container">
       <div class="page-title-section">
-        <div class="mcl-logo-wrapper" v-if="false">
+        <div class="mcl-logo-wrapper">
             <div class="mcl-logo">
                 <div class="logo-circle">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="mcl-icon">
@@ -16,13 +16,7 @@
         </div>
         <h1>STATISTIK MERCHANDISE</h1>
         <p class="subtitle">Overview of sales and performances</p>
-        <div class="header-actions" v-if="false">
-          <button class="check-stock-btn" @click="showStockModal = true">
-            <span class="btn-icon-bg">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"></path><path d="m3 9 2.45-4.9A2 2 0 0 1 7.24 3h9.52a2 2 0 0 1 1.8 1.1L21 9"></path><path d="M12 3v6"></path></svg>
-            </span>
-            <span>CEK STOCK</span>
-          </button>
+        <div class="header-actions">
           <button class="export-btn" @click="exportToExcel">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
             <span>EXPORT EXCEL</span>
@@ -239,37 +233,6 @@
       </div>
     </main>
 
-    <!-- Stock Modal -->
-    <div v-if="showStockModal" class="modal-overlay" @click.self="showStockModal = false">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h3>CEK STOCK</h3>
-          <button class="close-btn" @click="showStockModal = false">×</button>
-        </div>
-        <div class="modal-body">
-            <div class="scanner-input-wrapper">
-              <input 
-                type="text" 
-                v-model="scannedCode" 
-                @keyup.enter="handleScan"
-                placeholder="Scan barcode atau ketik manual..."
-                class="scanner-input"
-                autofocus
-              >
-            </div>
-            <div v-if="stockResult" class="stock-result">
-                <div v-if="stockResult.found" class="result-success">
-                    <p><strong>Produk:</strong> {{ stockResult.productName }}</p>
-                    <p><strong>Varian:</strong> {{ stockResult.variantName }}</p>
-                    <p><strong>Stock:</strong> <span class="stock-badge">{{ stockResult.stock }} pcs</span></p>
-                </div>
-                <div v-else class="result-error">
-                    <p>{{ stockResult.message }}</p>
-                </div>
-            </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -289,17 +252,13 @@ const summary = ref({
 });
 const pagination = ref({
     current_page: 1,
-    per_page: 100,
+    per_page: 200,
     last_page: 1
 });
 
 const searchQuery = ref('');
 const statusFilter = ref('');
 let searchTimeout = null;
-
-const showStockModal = ref(false);
-const scannedCode = ref('');
-const stockResult = ref(null);
 
 const isDropdownOpen = ref(false);
 
@@ -407,7 +366,7 @@ const fetchData = async (page = 1) => {
         if (sumData.status) summary.value = sumData.data.summary;
 
         // Transactions
-        let url = `${API_BASE_URL}/api/order-product/creator/${SLUG}/transactions?page=${page}&per_page=100`;
+        let url = `${API_BASE_URL}/api/order-product/creator/${SLUG}/transactions?page=${page}&per_page=200`;
         if (searchQuery.value) url += `&search=${encodeURIComponent(searchQuery.value)}`;
         
         // Try mapping status names to IDs for API if possible
@@ -489,46 +448,26 @@ const handleFilter = () => {
     fetchData(1);
 };
 
-const handleScan = async () => {
-    if (!scannedCode.value) return;
-    
-    // Search in local database
-    if (products.value.length === 0) {
-        await fetchProducts(1, false);
-    }
-
-    let found = null;
-    for (const p of products.value) {
-        if (p.sku === scannedCode.value) {
-            found = { productName: p.title, variantName: 'Main', stock: p.stock };
-            break;
-        }
-        const v = p.variants?.find(v => v.sku === scannedCode.value);
-        if (v) {
-            found = { productName: p.title, variantName: v.varian_name || v.name, stock: v.stock_qty || v.stock };
-            break;
-        }
-    }
-
-    if (found) {
-        stockResult.value = { found: true, ...found };
-    } else {
-        stockResult.value = { found: false, message: 'SKU tidak ditemukan' };
-    }
-    scannedCode.value = '';
-};
 
 const exportToExcel = () => {
-    let csv = 'Invoice,Customer,Products,Total Qty,Grand Total,Status,Pengiriman\n';
+    let csv = 'Date,Invoice,Customer,Email,Phone,Products,Total Qty,Grand Total,Status,Pengiriman,Address\n';
     transactions.value.forEach(t => {
+        const date = t.created_at ? new Date(t.created_at).toLocaleString('id-ID') : '-';
+        const customerName = t.shipping_address?.nama_penerima || t.customer?.name || 'Guest';
+        const email = t.customer?.email || '-';
+        const phone = t.shipping_address?.phone || t.customer?.phone || '-';
+        const address = t.shipping_address?.address_detail ? t.shipping_address.address_detail.replace(/"/g, '""') : '-';
+        
         const prods = t.items.map(i => {
             let name = i.product_name;
             if (i.variant_name) name += ` [${i.variant_name}]`;
             return `${name} (${i.qty})`;
-        }).join(' | ');
+        }).join(' | ').replace(/"/g, '""');
+        
         const deliveryStatus = getDeliveryStatusText(t);
         const calculatedGrandTotal = parseInt(t.total_price || 0);
-        csv += `${t.invoice_no},${t.customer?.name || 'Guest'},"${prods}",${t.total_qty},${calculatedGrandTotal},${t.transaction_status?.name},"${deliveryStatus}"\n`;
+        
+        csv += `"${date}","${t.invoice_no}","${customerName}","${email}","${phone}","${prods}",${t.total_qty},${calculatedGrandTotal},"${t.transaction_status?.name}","${deliveryStatus}","${address}"\n`;
     });
     
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

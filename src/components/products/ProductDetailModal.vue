@@ -136,10 +136,14 @@ const totalPrice = computed(() => {
                 v-for="variant in product.variants" 
                 :key="variant.id"
                 class="variant-chip"
-                :class="{ active: selectedVariantId === variant.id }"
+                :class="{ 
+                  active: selectedVariantId === variant.id,
+                  'is-out-of-stock': ((variant.stock_qty !== undefined ? variant.stock_qty : variant.stock) || 0) <= 0 
+                }"
                 @click="selectedVariantId = variant.id"
               >
                 {{ variant.varian_name || variant.variant_name || variant.name }}
+                <span v-if="((variant.stock_qty !== undefined ? variant.stock_qty : variant.stock) || 0) <= 0" class="habis-text"> (Habis)</span>
               </button>
             </div>
           </div>
@@ -160,10 +164,12 @@ const totalPrice = computed(() => {
             <button 
               class="add-to-cart-btn" 
               @click="addToCart" 
-              :disabled="quantity === 0 || (product.variants && product.variants.length > 0 && !selectedVariantId)"
+              :disabled="quantity <= 0 || (product.variants && product.variants.length > 0 && !selectedVariantId) || activeStock <= 0"
             >
-              <span>{{ (product.variants && product.variants.length > 0 && !selectedVariantId) ? 'Pilih Varian' : t('btnAddToCart') }}</span>
-              <span v-if="quantity > 0" class="btn-total-price">{{ formatRupiah(totalPrice) }}</span>
+              <span v-if="activeStock <= 0">Stok Habis</span>
+              <span v-else-if="product.variants && product.variants.length > 0 && !selectedVariantId">Pilih Varian</span>
+              <span v-else>{{ t('btnAddToCart') }}</span>
+              <span v-if="quantity > 0 && activeStock > 0" class="btn-total-price">{{ formatRupiah(totalPrice) }}</span>
             </button>
           </div>
         </div>
@@ -388,6 +394,20 @@ const totalPrice = computed(() => {
   border-color: #9e4d3d;
   color: #9e4d3d;
   font-weight: 600;
+}
+
+.variant-chip.is-out-of-stock {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #1a1a1a;
+  border-style: dashed;
+}
+
+.habis-text {
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-style: italic;
+  margin-left: 4px;
 }
 
 .product-price-section {
