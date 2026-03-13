@@ -30,6 +30,10 @@ watch(() => props.isOpen, (newVal) => {
   }
 });
 
+watch(selectedVariantId, () => {
+  quantity.value = 0;
+});
+
 const activePrice = computed(() => {
   if (selectedVariantId.value) {
     const variant = props.product.variants?.find(v => v.id === selectedVariantId.value);
@@ -41,7 +45,12 @@ const activePrice = computed(() => {
 const activeStock = computed(() => {
   if (selectedVariantId.value) {
     const variant = props.product.variants?.find(v => v.id === selectedVariantId.value);
-    if (variant) return (variant.stock_qty !== undefined ? variant.stock_qty : variant.stock) || 0;
+    if (variant) {
+      // Robust check for sold out status
+      const isSoldOut = variant.is_soldout == 1 || variant.is_soldout === true || variant.is_soldout === '1' || variant.is_soldout === 'true';
+      if (isSoldOut) return 0;
+      return (variant.stock_qty !== undefined ? variant.stock_qty : variant.stock) || 0;
+    }
   }
   return props.product.stock;
 });
@@ -53,7 +62,7 @@ const formatRupiah = (amount) => {
 
 const updateQuantity = (change) => {
   const newQty = quantity.value + change;
-  if (newQty >= 0 && newQty <= (activeStock.value || 99)) {
+  if (newQty >= 0 && newQty <= (activeStock.value || 0)) {
     quantity.value = newQty;
   }
 };
@@ -130,7 +139,7 @@ const totalPrice = computed(() => {
           </div>
 
           <div v-if="product.variants && product.variants.length > 0" class="product-variants-section">
-            <h4 class="section-label">{{ t('itemVariant') }}</h4>
+            <h4 class="section-label">{{ product.variants[0]?.product_varian_category?.varian_name || 'Varian' }}</h4>
             <div class="variants-grid">
               <button 
                 v-for="variant in product.variants" 
@@ -138,12 +147,12 @@ const totalPrice = computed(() => {
                 class="variant-chip"
                 :class="{ 
                   active: selectedVariantId === variant.id,
-                  'is-out-of-stock': ((variant.stock_qty !== undefined ? variant.stock_qty : variant.stock) || 0) <= 0 
+                  'is-out-of-stock': ((variant.stock_qty !== undefined ? variant.stock_qty : variant.stock) || 0) <= 0 || variant.is_soldout == 1 || variant.is_soldout === '1'
                 }"
                 @click="selectedVariantId = variant.id"
               >
                 {{ variant.varian_name || variant.variant_name || variant.name }}
-                <span v-if="((variant.stock_qty !== undefined ? variant.stock_qty : variant.stock) || 0) <= 0" class="habis-text"> (Habis)</span>
+                <span v-if="((variant.stock_qty !== undefined ? variant.stock_qty : variant.stock) || 0) <= 0 || variant.is_soldout == 1 || variant.is_soldout === '1'" class="habis-text"> (Sold Out)</span>
               </button>
             </div>
           </div>
@@ -155,9 +164,9 @@ const totalPrice = computed(() => {
                 <span class="stock-label">{{ t('stock') }}: {{ activeStock }}</span>
               </div>
               <div class="qty-control big">
-                <button class="qty-btn" @click="updateQuantity(-1)" :disabled="quantity <= 0">-</button>
+                <button class="qty-btn" @click="updateQuantity(-1)" :disabled="quantity <= 0 || activeStock <= 0">-</button>
                 <span class="qty-val">{{ quantity }}</span>
-                <button class="qty-btn" @click="updateQuantity(1)" :disabled="quantity >= (activeStock || 99)">+</button>
+                <button class="qty-btn" @click="updateQuantity(1)" :disabled="quantity >= activeStock || activeStock <= 0">+</button>
               </div>
             </div>
             
@@ -166,7 +175,7 @@ const totalPrice = computed(() => {
               @click="addToCart" 
               :disabled="quantity <= 0 || (product.variants && product.variants.length > 0 && !selectedVariantId) || activeStock <= 0"
             >
-              <span v-if="activeStock <= 0">Stok Habis</span>
+              <span v-if="activeStock <= 0">Sold Out</span>
               <span v-else-if="product.variants && product.variants.length > 0 && !selectedVariantId">Pilih Varian</span>
               <span v-else>{{ t('btnAddToCart') }}</span>
               <span v-if="quantity > 0 && activeStock > 0" class="btn-total-price">{{ formatRupiah(totalPrice) }}</span>

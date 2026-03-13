@@ -19,9 +19,18 @@ const selectedVariantId = ref(null);
 // Reset or initialize selected variant when modal opens
 watch(() => props.isOpen, (newVal) => {
   if (newVal && props.product.variants && props.product.variants.length > 0) {
-    // Try to find if any variant is already in cart, otherwise pick first
+    // Try to find if any variant is already in cart
     const inCart = props.product.variants.find(v => store.cart.some(item => item.id === props.product.id && item.variant_id === v.id));
-    selectedVariantId.value = inCart ? inCart.id : props.product.variants[0].id;
+    if (inCart) {
+      selectedVariantId.value = inCart.id;
+    } else {
+      // Find first not sold out variant
+      const firstAvailable = props.product.variants.find(v => {
+        const isSoldOut = v.is_soldout == 1 || v.is_soldout === true || v.is_soldout === '1' || v.is_soldout === 'true';
+        return !isSoldOut && (v.stock_qty > 0 || v.stock > 0);
+      });
+      selectedVariantId.value = firstAvailable ? firstAvailable.id : props.product.variants[0].id;
+    }
   }
 }, { immediate: true });
 
@@ -64,6 +73,8 @@ const totalProductQuantity = computed(() => {
 
 const activeStock = computed(() => {
   if (!selectedVariant.value) return 0;
+  const isSoldOut = selectedVariant.value.is_soldout == 1 || selectedVariant.value.is_soldout === true || selectedVariant.value.is_soldout === '1' || selectedVariant.value.is_soldout === 'true';
+  if (isSoldOut) return 0;
   return (selectedVariant.value.stock_qty !== undefined ? selectedVariant.value.stock_qty : selectedVariant.value.stock) || 0;
 });
 </script>
@@ -96,11 +107,13 @@ const activeStock = computed(() => {
 
           <div class="selection-controls">
             <div class="control-group">
-              <label class="control-label">{{ t('itemVariant') }}</label>
+              <label class="control-label">{{ product.variants[0]?.product_varian_category?.varian_name || 'Varian' }}</label>
               <div class="custom-select-wrapper">
                 <select v-model="selectedVariantId" class="variant-select">
                   <option v-for="variant in product.variants" :key="variant.id" :value="variant.id">
-                    {{ variant.varian_name || variant.variant_name || variant.name }} - {{ formatRupiah(parseFloat(variant.price)) }}
+                    {{ variant.varian_name || variant.variant_name || variant.name }} 
+                    <template v-if="variant.is_soldout == 1 || variant.is_soldout === '1' || ((variant.stock_qty !== undefined ? variant.stock_qty : variant.stock) || 0) <= 0"> (Sold Out)</template>
+                    - {{ formatRupiah(parseFloat(variant.price)) }}
                   </option>
                 </select>
                 <div class="select-icon">
@@ -120,7 +133,7 @@ const activeStock = computed(() => {
                 <button 
                   class="qty-btn-large" 
                   @click="updateQuantity(-1)" 
-                  :disabled="currentQuantity <= 0"
+                  :disabled="currentQuantity <= 0 || activeStock <= 0"
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                     <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -130,7 +143,7 @@ const activeStock = computed(() => {
                 <button 
                   class="qty-btn-large" 
                   @click="updateQuantity(1)"
-                  :disabled="currentQuantity >= activeStock"
+                  :disabled="currentQuantity >= activeStock || activeStock <= 0 || (selectedVariant && (selectedVariant.is_soldout == 1 || selectedVariant.is_soldout === '1'))"
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -142,8 +155,8 @@ const activeStock = computed(() => {
           </div>
 
           <div class="modal-actions" v-if="totalProductQuantity > 0">
-             <button class="confirm-btn" @click="$emit('close')">
-               {{ t('btnAddToCart') || 'Tambah ke Keranjang' }} ({{ totalProductQuantity }})
+             <button class="confirm-btn" @click="$emit('close')" :disabled="activeStock <= 0">
+               {{ activeStock <= 0 ? 'Sold Out' : (t('btnAddToCart') || 'Tambah ke Keranjang') }} ({{ totalProductQuantity }})
              </button>
           </div>
         </div>
