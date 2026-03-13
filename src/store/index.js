@@ -22,6 +22,24 @@ export const store = reactive({
     return import.meta.env.VITE_API_URL || 'https://api.kolektix.cloud';
   },
 
+  get reportId() {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    // Production: store.deelestari.com
+    if (hostname.includes('deelestari.com')) {
+      return '5b53f37';
+    }
+    // Default / Dev: 887cccd
+    return '887cccd';
+  },
+
+  get allowedVariantIds() {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    if (hostname.includes('deelestari.com')) {
+      return [1159, 1160, 1161, 1162];
+    }
+    return null; // Null means allow all
+  },
+
   get isAuthenticated() {
     return this.user !== null && this.token !== null;
   },

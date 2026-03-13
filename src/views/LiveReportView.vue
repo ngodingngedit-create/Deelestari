@@ -50,7 +50,7 @@
           </div>
           <div class="stat-content">
             <span class="stat-label">GAGAL (EXPIRED)</span>
-            <span class="stat-value">{{ summary.cancelled_count }}</span>
+            <span class="stat-value">{{ summary.expired_count }}</span>
           </div>
         </div>
 
@@ -65,8 +65,26 @@
         </div>
       </div>
 
+      <!-- Content Tabs -->
+      <div class="report-tabs">
+        <button 
+          class="tab-btn" 
+          :class="{ active: activeTab === 'transactions' }"
+          @click="activeTab = 'transactions'"
+        >
+          Daftar Transaksi
+        </button>
+        <button 
+          class="tab-btn" 
+          :class="{ active: activeTab === 'variants' }"
+          @click="activeTab = 'variants'"
+        >
+          Report Stock
+        </button>
+      </div>
+
       <!-- Transactions Table Section -->
-      <div class="transactions-section">
+      <div v-if="activeTab === 'transactions'" class="transactions-section">
         <div class="section-header">
           <div class="header-main">
             <h2>Daftar Transaksi</h2>
@@ -215,6 +233,64 @@
         </div>
       </div>
 
+      <!-- Variant Report Section -->
+      <div v-if="activeTab === 'variants'" class="transactions-section variants-report-section">
+        <div class="section-header">
+          <div class="header-main">
+            <h2>Report Stock</h2>
+            <div class="total-info">
+              <div class="badge-count">{{ variantsReport.length }} Varian</div>
+            </div>
+          </div>
+          <div class="header-filters">
+             <!-- Optional: Add variant-specific filters here -->
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="premium-table">
+            <thead>
+              <tr>
+                <th>VARIAN</th>
+                <th>SKU</th>
+                <th>HARGA</th>
+                <th>STOCK AWAL</th>
+                <th>TERJUAL</th>
+                <th>PAID</th>
+                <th>PENDING</th>
+                <th>EXPIRED</th>
+                <th>SISA STOCK</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="v in variantsReport" :key="v.varian_id">
+                <td>
+                  <div class="variant-name-cell">
+                    <span class="v-name">{{ v.varian_name }}</span>
+                    <small class="v-product">{{ v.product_name }}</small>
+                  </div>
+                </td>
+                <td><code class="sku-code">{{ v.sku }}</code></td>
+                <td><span class="price-val">Rp {{ formatCurrency(v.price) }}</span></td>
+                <td>{{ v.stock_awal }}</td>
+                <td>{{ v.total_terjual }}</td>
+                <td><span class="paid-val">{{ v.total_paid }}</span></td>
+                <td><span class="pending-val">{{ v.total_pending }}</span></td>
+                <td><span class="expired-val">{{ v.total_expired }}</span></td>
+                <td>
+                  <span 
+                    class="stock-status" 
+                    :class="parseInt(v.sisa_stock) <= 0 ? 'out-of-stock' : 'in-stock'"
+                  >
+                    {{ v.sisa_stock }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Loading State -->
       <div v-if="loading" class="loading-overlay">
         <div class="spinner"></div>
@@ -236,8 +312,13 @@ const summary = ref({
   total_revenue: 0,
   pending_count: 0,
   paid_count: 0,
-  cancelled_count: 0
+  cancelled_count: 0,
+  expired_count: 0,
+  stock_awal: 0,
+  sisa_stock: 0
 });
+const activeTab = ref('transactions'); // 'transactions' or 'variants'
+const variantsReport = ref([]);
 const pagination = ref({
     current_page: 1,
     per_page: 200,
@@ -348,10 +429,27 @@ const getDeliveryStatusClass = (item) => {
 const fetchData = async (page = 1) => {
     loading.value = true;
     try {
-        // Summary
-        const sumResp = await fetch(`${API_BASE_URL}/api/order-product/creator/${SLUG}/transactions-summary`);
-        const sumData = await sumResp.json();
-        if (sumData.status) summary.value = sumData.data.summary;
+        // Summary from new API
+        const reportId = store.reportId;
+        const sumResp = await fetch(`${API_BASE_URL}/api/product-bymerchant/report/${reportId}`);
+        const sumResult = await sumResp.json();
+        
+        if (sumResult.status && sumResult.data) {
+            const reportData = sumResult.data.summary || {};
+            summary.value.paid_count = reportData.total_paid || 0;
+            summary.value.pending_count = reportData.total_pending || 0;
+            summary.value.cancelled_count = reportData.total_canceled || 0;
+            summary.value.expired_count = reportData.total_expired || 0;
+            summary.value.stock_awal = reportData.total_stock_awal || 0;
+            summary.value.sisa_stock = reportData.total_sisa_stock || 0;
+            
+            // Store detailed variant report with environment filtering
+            let reports = sumResult.data.variants_report || [];
+            if (store.allowedVariantIds) {
+                reports = reports.filter(r => store.allowedVariantIds.includes(r.varian_id));
+            }
+            variantsReport.value = reports;
+        }
 
         // Transactions
         let url = `${API_BASE_URL}/api/order-product/creator/${SLUG}/transactions?page=${page}&per_page=200`;
@@ -394,28 +492,11 @@ const fetchData = async (page = 1) => {
             pagination.value = paginationData;
             
             // Calculate summary stats BASED ON THE CURRENT TABLE DATA (Current Page)
-            // as requested: "berdasarkan tabel aja, yang ada di tabel yang dihitung"
             const paidOnPage = transactions.value.filter(t => 
                 t.transaction_status_id === 2 || t.transaction_status?.name?.toLowerCase() === 'paid'
             );
             
-            summary.value.paid_count = paidOnPage.reduce((sum, t) => sum + (parseInt(t.total_qty) || 0), 0);
             summary.value.total_revenue = paidOnPage.reduce((sum, t) => sum + parseInt(t.total_price || 0), 0);
-            
-            summary.value.pending_count = transactions.value.filter(t => 
-                t.transaction_status_id === 1 || 
-                t.transaction_status?.name?.toLowerCase() === 'unpaid' || 
-                t.transaction_status?.name?.toLowerCase() === 'pending'
-            ).length;
-            
-            summary.value.cancelled_count = transactions.value.filter(t => 
-                t.transaction_status_id === 4 || 
-                t.transaction_status?.name?.toLowerCase() === 'expired' || 
-                t.transaction_status?.name?.toLowerCase() === 'cancelled' ||
-                t.transaction_status?.name?.toLowerCase() === 'canceled' ||
-                t.transaction_status?.name?.toLowerCase() === 'failed'
-            ).length;
-
             summary.value.total_transactions = transactions.value.length;
         }
     } catch (e) {
@@ -471,6 +552,7 @@ const exportToExcel = () => {
 onMounted(() => {
     fetchData();
     fetchCreatorInfo();
+    fetchProducts(); // Ensure products are fetched for creator mapping
 });
 </script>
 
@@ -493,45 +575,6 @@ onMounted(() => {
   margin-bottom: 50px;
 }
 
-.mcl-logo-wrapper {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 20px;
-}
-
-.mcl-logo {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 8px 18px;
-    border-radius: 50px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    backdrop-filter: blur(10px);
-}
-
-.logo-circle {
-    width: 32px;
-    height: 32px;
-    background: #1DA1F2;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 0 15px rgba(29, 161, 242, 0.5);
-}
-
-.mcl-icon {
-    width: 18px;
-    height: 18px;
-}
-
-.logo-text {
-    font-weight: 800;
-    font-size: 0.9rem;
-    letter-spacing: 0.5px;
-}
-
 h1 {
   font-size: 2.5rem;
   font-weight: 800;
@@ -549,36 +592,6 @@ h1 {
   display: flex;
   justify-content: center;
   gap: 15px;
-}
-
-.check-stock-btn {
-  background: #1DA1F2;
-  color: #fff;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  transition: all 0.3s;
-  box-shadow: 0 10px 20px rgba(29, 161, 242, 0.3);
-}
-
-.check-stock-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 15px 30px rgba(29, 161, 242, 0.4);
-}
-
-.btn-icon-bg {
-    background: rgba(255, 255, 255, 0.2);
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
 .export-btn {
@@ -640,6 +653,8 @@ h1 {
 .pending-icon { background: rgba(255, 167, 38, 0.1); color: #ffa726; }
 .success-icon { background: rgba(46, 204, 113, 0.1); color: #2ecc71; }
 .failed-icon { background: rgba(231, 76, 60, 0.1); color: #e74c3c; }
+.expired-icon { background: rgba(158, 158, 158, 0.1); color: #9e9e9e; }
+.stock-icon { background: rgba(155, 89, 182, 0.1); color: #9b59b6; }
 
 .stat-content {
   display: flex;
@@ -656,6 +671,89 @@ h1 {
 .stat-value {
   font-size: 1.3rem;
   font-weight: 900;
+}
+
+/* Tabs */
+.report-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 25px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 6px;
+  border-radius: 16px;
+  width: fit-content;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn {
+  padding: 10px 25px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.tab-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn.active {
+  background: #1DA1F2;
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(29, 161, 242, 0.3);
+}
+
+/* Variant Report Table Specifics */
+.variant-name-cell {
+  display: flex;
+  flex-direction: column;
+}
+
+.v-name {
+  font-weight: 800;
+  color: #fff;
+  font-size: 1rem;
+}
+
+.v-product {
+  font-size: 0.75rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sku-code {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.paid-val { color: #2ecc71; font-weight: 800; }
+.pending-val { color: #ffa726; font-weight: 800; }
+.expired-val { color: #e74c3c; font-weight: 800; }
+
+.stock-status {
+  padding: 4px 12px;
+  border-radius: 50px;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.stock-status.in-stock {
+  background: rgba(46, 204, 113, 0.1);
+  color: #2ecc71;
+}
+
+.stock-status.out-of-stock {
+  background: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
 }
 
 /* Transactions Table */
@@ -985,47 +1083,6 @@ h1 {
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.85);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-}
-
-.modal-card {
-  background: #111;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  width: 90%;
-  max-width: 500px;
-  border-radius: 24px;
-  overflow: hidden;
-}
-
-.modal-header {
-  padding: 20px;
-  display: flex;
-  justify-content: space-between;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.modal-body { padding: 30px; }
-.scanner-input {
-  width: 100%;
-  background: #000;
-  border: 1px solid #333;
-  padding: 15px;
-  border-radius: 12px;
-  color: #fff;
-  font-size: 1rem;
-}
-
-.stock-result { margin-top: 20px; padding: 20px; background: rgba(255, 255, 255, 0.05); border-radius: 15px; }
-.stock-badge { background: #1DA1F2; padding: 4px 10px; border-radius: 6px; font-weight: 800; }
 
 @media (max-width: 1200px) {
   .stats-grid { grid-template-columns: repeat(3, 1fr); }

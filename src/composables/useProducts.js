@@ -10,6 +10,25 @@ export function useProducts() {
 
     const creatorIdRef = ref(null);
 
+    const fetchReportStock = async () => {
+        try {
+            const baseUrl = store.baseUrl;
+            const reportId = store.reportId;
+            const response = await fetch(`${baseUrl}/api/product-bymerchant/report/${reportId}`);
+            const result = await response.json();
+            if (result.status && result.data && result.data.variants_report) {
+                let reports = result.data.variants_report;
+                if (store.allowedVariantIds) {
+                    reports = reports.filter(r => store.allowedVariantIds.includes(r.varian_id));
+                }
+                return reports;
+            }
+        } catch (err) {
+            console.error('Error fetching report stock:', err);
+        }
+        return null;
+    };
+
     const fetchProducts = async (page = 1, append = false, creatorId = null) => {
         loading.value = true;
         error.value = null;
@@ -34,8 +53,14 @@ export function useProducts() {
                     url += `&creator_id=${effectiveCreatorId}`;
                 }
             }
-            const response = await fetch(url);
-            const result = await response.json();
+            
+            // Parallel fetch products and report stock
+            const [prodResp, reportVariants] = await Promise.all([
+                fetch(url),
+                fetchReportStock()
+            ]);
+            
+            const result = await prodResp.json();
 
             if (result.data) {
                 const mappedProducts = result.data.map(item => {
@@ -47,13 +72,34 @@ export function useProducts() {
                     let price = parseFloat(item.price);
                     let stock = item.qty;
 
-                    // If it has variants, use them for price and stock if top-level is 0
-                    if (item.product_varian && item.product_varian.length > 0) {
-                        if (price === 0) {
-                            price = parseFloat(item.product_varian[0].price);
+                    // Apply report stock overrides if available
+                    const variants = (item.product_varian || []).map(v => {
+                        let isSoldOut = v.is_soldout === 1 || (v.stock_qty !== undefined ? v.stock_qty : v.stock) <= 0;
+                        let currentStock = v.stock_qty !== undefined ? v.stock_qty : v.stock;
+                        
+                        if (reportVariants) {
+                            const report = reportVariants.find(r => r.varian_id === v.id);
+                            if (report) {
+                                // Explicit override based on report sisa_stock
+                                currentStock = parseInt(report.sisa_stock);
+                                isSoldOut = currentStock <= 0;
+                            }
                         }
-                        // Total stock is sum of variant stocks
-                        stock = item.product_varian.reduce((sum, v) => sum + (v.stock_qty || 0), 0);
+                        
+                        return {
+                            ...v,
+                            stock_qty: currentStock,
+                            is_soldout: isSoldOut ? 1 : 0
+                        };
+                    });
+
+                    // If it has variants, use them for price and stock if top-level is 0
+                    if (variants.length > 0) {
+                        if (price === 0) {
+                            price = parseFloat(variants[0].price);
+                        }
+                        // Total stock is sum of variant stocks (calculated from overridden stock_qty/is_soldout)
+                        stock = variants.reduce((sum, v) => sum + (v.is_soldout ? 0 : (v.stock_qty || 0)), 0);
                     }
 
                     return {
@@ -70,7 +116,7 @@ export function useProducts() {
                         stock: stock,
                         slug: item.slug,
                         isPreorder: item.is_preorder === 1,
-                        variants: item.product_varian || []
+                        variants: variants
                     };
                 });
 

@@ -681,7 +681,26 @@ const placeOrder = async () => {
         }
       }
     } else {
-      store.showNotification(result.message || 'Failed to place order', 'error');
+      // Refine error messages
+      let errorMsg = result.message || 'Failed to place order';
+      
+      // Stock issue
+      if (result.error && result.error.includes('Stock varian') && result.error.includes('tidak cukup')) {
+        errorMsg = 'Stock produk sudah habis';
+      }
+      
+      // Address validation issue
+      if (result.errors && result.errors['address.address_detail']) {
+        errorMsg = 'Alamat harus diisi';
+      } else if (result.message === 'Validation failed' && result.errors) {
+        // Fallback for other validation errors
+        const firstError = Object.values(result.errors)[0];
+        if (Array.isArray(firstError) && firstError[0]) {
+          errorMsg = firstError[0];
+        }
+      }
+
+      store.showNotification(errorMsg, 'error');
     }
   } catch (err) {
     console.error('Checkout error:', err);
