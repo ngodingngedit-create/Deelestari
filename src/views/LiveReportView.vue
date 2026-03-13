@@ -263,11 +263,18 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="v in variantsReport" :key="v.varian_id">
+              <tr 
+                v-for="v in variantsReport" 
+                :key="v.varian_id"
+                :class="{ 'sold-out-row': parseInt(v.sisa_stock) <= 0 }"
+              >
                 <td>
                   <div class="variant-name-cell">
-                    <span class="v-name">{{ v.varian_name }}</span>
+                    <span class="v-name" :class="{ 'v-strikethrough': parseInt(v.sisa_stock) <= 0 }">
+                      {{ v.varian_name }}
+                    </span>
                     <small class="v-product">{{ v.product_name }}</small>
+                    <span v-if="parseInt(v.sisa_stock) <= 0" class="sold-out-text">SOLD OUT</span>
                   </div>
                 </td>
                 <td><code class="sku-code">{{ v.sku }}</code></td>
@@ -288,6 +295,22 @@
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Legend Section -->
+        <div class="report-legend">
+          <div class="legend-item">
+            <span class="dot paid"></span>
+            <span class="label">Paid = Sudah Terbayar</span>
+          </div>
+          <div class="legend-item">
+            <span class="dot pending"></span>
+            <span class="label">Pending = Menunggu Pembayaran</span>
+          </div>
+          <div class="legend-item">
+            <span class="dot expired"></span>
+            <span class="label">Expired = Gagal Melakukan Pembayaran</span>
+          </div>
         </div>
       </div>
 
@@ -754,6 +777,58 @@ h1 {
 .stock-status.out-of-stock {
   background: rgba(231, 76, 60, 0.1);
   color: #e74c3c;
+}
+
+.sold-out-row {
+  background: rgba(231, 76, 60, 0.05) !important;
+}
+
+.v-strikethrough {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.sold-out-text {
+  font-size: 0.65rem;
+  font-weight: 900;
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  width: fit-content;
+  margin-top: 4px;
+}
+
+/* Legend */
+.report-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-item .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legend-item .dot.paid { background: #2ecc71; }
+.legend-item .dot.pending { background: #ffa726; }
+.legend-item .dot.expired { background: #e74c3c; }
+
+.legend-item .label {
+  font-size: 0.8rem;
+  color: #888;
+  font-weight: 500;
 }
 
 /* Transactions Table */
