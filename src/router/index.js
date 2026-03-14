@@ -81,6 +81,11 @@ const router = createRouter({
             path: '/live-report',
             name: 'live-report',
             component: () => import('../views/LiveReportView.vue')
+        },
+        {
+            path: '/cetak-resi',
+            name: 'cetak-resi',
+            component: () => import('../views/CetakResiView.vue')
         }
     ],
     scrollBehavior(to, from, savedPosition) {
