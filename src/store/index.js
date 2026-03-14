@@ -40,6 +40,14 @@ export const store = reactive({
     return null; // Null means allow all
   },
 
+  get slug() {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    if (hostname.includes('deelestari.com') || this.baseUrl.includes('api.kolektix.com')) {
+      return 'quo8xyabgs';
+    }
+    return '8mzptkrp1u';
+  },
+
   get isAuthenticated() {
     return this.user !== null && this.token !== null;
   },

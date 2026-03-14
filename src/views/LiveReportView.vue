@@ -150,6 +150,7 @@
                 <th>QTY</th>
                 <th>GRAND TOTAL</th>
                 <th>STATUS PENGIRIMAN</th>
+                <th>AKSI</th>
               </tr>
             </thead>
             <tbody>
@@ -205,9 +206,15 @@
                     {{ getDeliveryStatusText(item) }}
                   </span>
                 </td>
+                <td>
+                  <button class="print-btn" @click="printResi(item)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="mr-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                    Cetak Resi
+                  </button>
+                </td>
               </tr>
               <tr v-if="transactions.length === 0 && !loading">
-                <td colspan="8" class="no-data-cell">No transactions found</td>
+                <td colspan="9" class="no-data-cell">No transactions found</td>
               </tr>
             </tbody>
           </table>
@@ -396,7 +403,7 @@ const vClickOutside = {
 const { products, fetchProducts } = useProducts();
 
 const API_BASE_URL = store.baseUrl;
-const SLUG = store.baseUrl.includes('api.kolektix.com') ? 'quo8xyabgs' : '8mzptkrp1u'; 
+const SLUG = store.slug; 
 const creatorInfo = ref(null);
 
 const findCreatorForProduct = (productId) => {
@@ -447,6 +454,429 @@ const getDeliveryStatusClass = (item) => {
         return 'is-taken';
     }
     return 'not-taken';
+};
+
+// Cetak Resi Action
+const printResi = async (t) => {
+  // Try to fetch full invoice details first to get accurate courier info
+  let courierName = t.shipping_method?.toUpperCase() || (t.latest_manifest?.courier_name ? t.latest_manifest.courier_name.toUpperCase() : 'JNE');
+  let courierService = t.shipping_service || 'reg';
+  let trackingNumber = t.latest_manifest?.waybill || 'KLTRX-' + (t.invoice_no || '').replace(/[^A-Z0-9]/ig, '').substring(0, 10).toUpperCase();
+  let deliveryPrice = parseInt(t.shipping_cost || t.shipping_price || 9000); 
+
+  try {
+      const response = await fetch(`${API_BASE_URL}/api/order-product-invoice/${t.invoice_no}`);
+      const result = await response.json();
+      if (result.status && result.data) {
+          const detailData = result.data.order || result.data;
+          
+          if(detailData.shipping_method) courierName = detailData.shipping_method.toUpperCase();
+          if(detailData.shipping_service) courierService = detailData.shipping_service;
+          
+          if(detailData.latest_manifest && detailData.latest_manifest.waybill) {
+              trackingNumber = detailData.latest_manifest.waybill;
+          }
+          if(detailData.tracking_number) {
+              trackingNumber = detailData.tracking_number;
+          } else if(detailData.awb) {
+              trackingNumber = detailData.awb;
+          }
+          
+          // Also check explicit courier info from API
+          if (result.data.courier) {
+              if (result.data.courier.main) courierName = result.data.courier.main.toUpperCase();
+              if (result.data.courier.courier_company) courierName = result.data.courier.courier_company.toUpperCase();
+              if (result.data.courier.courier_type) courierService = result.data.courier.courier_type;
+              
+              const cTracking = result.data.courier.tracking_number;
+              if (cTracking && cTracking !== null) trackingNumber = cTracking;
+          }
+          
+          // Check manifest array for tracking number
+          if (result.data.manifest && Array.isArray(result.data.manifest) && result.data.manifest.length > 0) {
+              const mTrack = result.data.manifest[0].tracking_number;
+              if (mTrack && mTrack !== null) trackingNumber = mTrack;
+          }
+          
+          if(detailData.delivery_price) deliveryPrice = parseInt(detailData.delivery_price);
+      }
+  } catch (err) {
+      console.error('Failed to fetch detailed invoice for resi print', err);
+      // Fallback to table data if fetch fails
+  }
+
+  const referenceNumber = t.invoice_no || '-';
+  
+  const receiverName = t.shipping_address?.nama_penerima || t.customer?.name || 'Guest';
+  const receiverPhone = t.shipping_address?.phone || t.customer?.phone || '-';
+  
+  // Use user context or defaults for sender
+  const senderName = 'deelestari';
+  const senderPhone = '0811182844'; 
+  
+  // Full address combining details
+  let receiverFullAddress = '';
+  if (t.shipping_address) {
+    const parts = [
+      t.shipping_address.address_detail,
+      t.shipping_address.city_name || t.shipping_address.city,
+      t.shipping_address.province_name || t.shipping_address.province,
+      t.shipping_address.zipcode || t.shipping_address.zip_code
+    ];
+    // Filter out undefined, null, or "-""
+    receiverFullAddress = parts.filter(Boolean).filter(p => p !== '-').join(', ');
+  } else {
+    receiverFullAddress = '-';
+  }
+
+  const senderAddress = 'Perumahan Diamond Valley blok A2 no 1, bedahan Sawangan, Jl. H. Sulaiman, Kec. Sawangan, Kota Depok, Jawa Barat (rumah paling pinggir A2/1 sebelum belokan), Sawangan, Depok, Jawa Barat';
+  
+  const productItems = t.items.map(i => {
+      let name = i.product_name;
+      if (i.variant_name) name += ` [${i.variant_name}]`;
+      return `${i.qty}x ${name}`;
+  }).join(' | ');
+  
+  const orderNotes = t.order_notes || 'mechanise deelestari';
+
+  const generateBarcodeBars = () => {
+    let bars = '';
+    for(let i=0; i<30; i++) {
+        bars += `<div style="width: ${Math.floor(Math.random() * 4 + 1)}px;"></div>`;
+    }
+    return bars;
+  };
+
+  const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Resi Pengiriman - ${trackingNumber}</title>
+        \x3Cstyle>
+          /* Reset CSS untuk print */
+          * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+          }
+          
+          body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+          }
+          
+          @media print {
+            @page {
+              size: A4 portrait;
+              margin: 0.5cm;
+            }
+            body {
+              background: white;
+              padding: 0;
+              margin: 0;
+            }
+            .resi-container {
+              box-shadow: none;
+              border: 2px solid #000 !important;
+              max-height: 98vh;
+              page-break-inside: avoid;
+              transform-origin: top left;
+            }
+            .barcode-bars div {
+              background-color: #000 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+          }
+          
+          .resi-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border: 2px solid #000;
+            padding: 15px;
+            font-size: 13px;
+            line-height: 1.3;
+          }
+          
+          .header {
+            text-align: center;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+          }
+          
+          .header h1 {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 0;
+            color: #000;
+            letter-spacing: 2px;
+          }
+          
+          .header .subtitle {
+            font-size: 14px;
+            color: #000;
+            margin-top: 5px;
+            font-weight: normal;
+          }
+          
+          .biteship {
+            text-align: center;
+            margin: 10px 0;
+            font-size: 14px;
+            color: #000;
+            border-bottom: 1px dashed #000;
+            padding-bottom: 10px;
+          }
+          
+          .tracking-number {
+            text-align: center;
+            font-size: 16px; 
+            font-weight: bold;
+            margin: 10px 0; 
+            padding: 8px; 
+            border: 2px solid #000;
+            background-color: #f9f9f9;
+            color: #000;
+          }
+          
+          .barcode-container {
+            text-align: center;
+            margin: 15px 0; 
+            padding: 10px; 
+            border: 2px solid #000;
+            background-color: #fff;
+          }
+          
+          .barcode-bars {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+            background-color: #fff;
+          }
+          
+          .barcode-bars div {
+            display: inline-block;
+            background-color: #000;
+            height: 60px;
+            margin-right: 2px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            forced-color-adjust: none;
+          }
+          
+          .barcode-number {
+            font-family: monospace;
+            font-size: 14px;
+            letter-spacing: 2px;
+            margin-top: 10px;
+            color: #000;
+          }
+          
+          .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid #000;
+            font-size: 14px;
+            color: #000;
+          }
+          
+          .reference {
+            margin: 15px 0;
+            padding: 10px;
+            border: 2px solid #000;
+            background-color: #f9f9f9;
+            color: #000;
+          }
+          
+          .reference-label {
+            font-weight: bold;
+            margin-right: 10px;
+            display: block;
+            margin-bottom: 5px;
+          }
+          
+          .reference-value {
+            font-family: monospace;
+            font-size: 14px;
+            word-break: break-all;
+          }
+          
+          .address-section {
+            margin: 10px 0; 
+            border: 2px solid #000;
+            color: #000;
+          }
+          
+          .address-box {
+            padding: 8px; 
+          }
+          
+          .address-box:first-child {
+            border-bottom: 2px solid #000;
+          }
+          
+          .address-label {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 14px;
+            text-decoration: underline;
+          }
+          
+          .address-name {
+            font-weight: bold;
+            margin: 5px 0;
+            font-size: 14px;
+          }
+          
+          .address-phone {
+            color: #000;
+            margin: 5px 0;
+            font-size: 14px;
+          }
+          
+          .address-detail {
+            line-height: 1.5;
+            margin: 10px 0;
+            padding: 10px;
+            border: 2px solid #000;
+            background-color: #f9f9f9;
+            font-size: 13px;
+            color: #000;
+          }
+          
+          .product-info {
+            margin: 15px 0;
+            padding: 12px;
+            border: 2px solid #000;
+            background-color: #f9f9f9;
+            color: #000;
+          }
+          
+          .product-label {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: block;
+            text-decoration: underline;
+          }
+          
+          .product-detail {
+            font-size: 13px;
+            line-height: 1.4;
+          }
+          
+          .notes {
+            margin: 10px 0;
+            padding: 8px;
+            border: 2px solid #000;
+            background-color: #f9f9f9;
+            font-style: italic;
+            font-size: 13px;
+            color: #000;
+          }
+          
+          .footer {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 2px solid #000;
+            text-align: center;
+            font-size: 11px;
+            color: #000;
+          }
+          
+          .dashed-line {
+            border-bottom: 1px dashed #000;
+            margin: 10px 0;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="resi-container">
+          <div class="header">
+            <h1>${courierName}</h1>
+            <div class="subtitle">EXPRESS ACROSS NATIONS</div>
+          </div>
+          
+          <div class="biteship">kolektix.com</div>
+          
+          <div class="tracking-number">
+            Nomor Resi - ${trackingNumber}
+          </div>
+          
+          <div class="barcode-container">
+            <div class="barcode-bars">
+              ${generateBarcodeBars()}
+            </div>
+            <div class="barcode-number">${trackingNumber}</div>
+          </div>
+          
+          <div class="info-row">
+            <span><strong>Ongkos Kirim:</strong> Rp. ${deliveryPrice.toLocaleString('id-ID')}</span>
+            <span><strong>Jenis Layanan</strong> - ${courierService}</span>
+          </div>
+          
+          <div class="reference">
+            <span class="reference-label">Reference Number</span>
+            <div class="reference-value">${referenceNumber}</div>
+          </div>
+          
+          <div class="address-section">
+            <div class="address-box">
+              <div class="address-label">Alamat Penerima:</div>
+              <div class="address-name">${receiverName}</div>
+              <div class="address-phone">${receiverPhone}</div>
+            </div>
+            
+            <div class="address-box">
+              <div class="address-label">Alamat Pengirim:</div>
+              <div class="address-name">${senderName}</div>
+              <div class="address-phone">${senderPhone}</div>
+            </div>
+          </div>
+          
+          <div class="address-detail">
+            ${receiverFullAddress}
+          </div>
+          
+          <div class="dashed-line"></div>
+          
+          <div class="address-detail">
+            ${senderAddress}
+          </div>
+          
+          <div class="product-info">
+            <span class="product-label">Jenis Barang:</span>
+            <div class="product-detail">${productItems}</div>
+          </div>
+          
+          <div class="notes">
+            <em>Catatan: ${orderNotes}</em>
+          </div>
+          
+          <div class="footer">
+            Pengiriman dari Warehouse<br>
+            kolektix.com
+          </div>
+        </div>
+        \x3Cscript>
+            window.onload = function() {
+                window.print();
+            };
+        \x3C/script>
+      </body>
+      </html>
+  `;
+
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(html);
+  printWindow.document.close();
 };
 
 const fetchData = async (page = 1) => {
@@ -1232,6 +1662,72 @@ h1 {
 
   .section-header h2 {
     font-size: 1.2rem;
+  }
+}
+.print-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+}
+
+.print-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: 0.5s;
+}
+
+.print-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+  background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.print-btn:hover::before {
+  left: 100%;
+}
+
+.print-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.print-btn svg {
+  width: 18px;
+  height: 18px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .print-btn {
+    padding: 8px 12px;
+    font-size: 0.75rem;
   }
 }
 </style>
