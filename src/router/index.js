@@ -86,6 +86,11 @@ const router = createRouter({
             path: '/cetak-resi',
             name: 'cetak-resi',
             component: () => import('../views/CetakResiView.vue')
+        },
+        {
+            path: '/tracking',
+            name: 'tracking',
+            component: () => import('../views/TrackingView.vue')
         }
     ],
     scrollBehavior(to, from, savedPosition) {

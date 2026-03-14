@@ -839,13 +839,11 @@ const printResi = async (t) => {
           }
           
           .address-detail {
-            line-height: 1.5;
-            margin: 10px 0;
-            padding: 10px;
-            border: 2px solid #000;
-            background-color: #f9f9f9;
+            line-height: 1.4;
+            margin-top: 8px;
             font-size: 13px;
             color: #000;
+            white-space: pre-wrap;
           }
           
           .product-info {
@@ -928,23 +926,15 @@ const printResi = async (t) => {
               <div class="address-label">Alamat Penerima:</div>
               <div class="address-name">${receiverName}</div>
               <div class="address-phone">${receiverPhone}</div>
+              <div class="address-detail">${receiverFullAddress}</div>
             </div>
             
             <div class="address-box">
               <div class="address-label">Alamat Pengirim:</div>
               <div class="address-name">${senderName}</div>
               <div class="address-phone">${senderPhone}</div>
+              <div class="address-detail">${senderAddress}</div>
             </div>
-          </div>
-          
-          <div class="address-detail">
-            ${receiverFullAddress}
-          </div>
-          
-          <div class="dashed-line"></div>
-          
-          <div class="address-detail">
-            ${senderAddress}
           </div>
           
           <div class="product-info">
