@@ -635,13 +635,6 @@ const printResi = async (t) => {
   
   const orderNotes = t.order_notes || 'mechanise deelestari';
 
-  const generateBarcodeBars = () => {
-    let bars = '';
-    for(let i=0; i<30; i++) {
-        bars += `<div style="width: ${Math.floor(Math.random() * 4 + 1)}px;"></div>`;
-    }
-    return bars;
-  };
 
   const html = `
       <!DOCTYPE html>
@@ -739,39 +732,22 @@ const printResi = async (t) => {
             color: #000;
           }
           
-          .barcode-container {
+          .qr-code-container {
             text-align: center;
-            margin: 15px 0; /* Reduced from 20px */
-            padding: 10px; /* Reduced from 15px */
+            margin: 15px 0;
+            padding: 15px;
             border: 2px solid #000;
             background-color: #fff;
-          }
-          
-          .barcode-bars {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            flex-wrap: wrap;
-            margin-bottom: 10px;
-            background-color: #fff;
+            gap: 10px;
           }
           
-          .barcode-bars div {
-            display: inline-block;
-            background-color: #000;
-            height: 60px;
-            margin-right: 2px;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-            forced-color-adjust: none;
-          }
-          
-          .barcode-number {
-            font-family: monospace;
-            font-size: 14px;
-            letter-spacing: 2px;
-            margin-top: 10px;
-            color: #000;
+          .qr-code-img {
+            width: 150px;
+            height: 150px;
+            image-rendering: pixelated;
           }
           
           .info-row {
@@ -904,11 +880,13 @@ const printResi = async (t) => {
             Nomor Resi - ${trackingNumber}
           </div>
           
-          <div class="barcode-container">
-            <div class="barcode-bars">
-              ${generateBarcodeBars()}
-            </div>
-            <div class="barcode-number">${trackingNumber}</div>
+          <div class="qr-code-container">
+            <img 
+              src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(referenceNumber)}" 
+              class="qr-code-img"
+              alt="QR Code"
+            />
+            <div class="barcode-number">${referenceNumber}</div>
           </div>
           
           <div class="info-row">

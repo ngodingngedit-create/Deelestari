@@ -136,6 +136,42 @@ const totalPrice = computed(() => {
           <div class="product-description-section">
             <h4 class="section-label">{{ t('description') }}</h4>
             <p class="product-description">{{ product.description }}</p>
+            
+            <div v-if="product.category === 'merchandise' && (product.title.toLowerCase().includes('kaos') || product.title.toLowerCase().includes('t-shirt') || product.title.toLowerCase().includes('baju'))" class="size-guide-container">
+              <h4 class="section-label size-guide-label">Panduan Ukuran (cm)</h4>
+              <div class="size-table-wrapper">
+                <table class="size-table">
+                  <thead>
+                    <tr>
+                      <th>UKURAN</th>
+                      <th>LEBAR DADA</th>
+                      <th>PANJANG</th>
+                      <th>LENGAN</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>M</td>
+                      <td>50</td>
+                      <td>70</td>
+                      <td>59</td>
+                    </tr>
+                    <tr>
+                      <td>L</td>
+                      <td>53</td>
+                      <td>73</td>
+                      <td>60</td>
+                    </tr>
+                    <tr>
+                      <td>XL</td>
+                      <td>56</td>
+                      <td>75</td>
+                      <td>61</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
 
           <div v-if="product.variants && product.variants.length > 0" class="product-variants-section">
@@ -368,7 +404,59 @@ const totalPrice = computed(() => {
   line-height: 1.7;
   color: #ccc;
   max-width: 90%;
+  margin-bottom: 20px;
+}
+
+.size-guide-container {
+  margin-top: 25px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.size-guide-label {
+  padding: 12px 15px;
   margin-bottom: 0;
+  background: rgba(158, 77, 61, 0.1);
+  font-size: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.size-table-wrapper {
+  overflow-x: auto;
+}
+
+.size-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.size-table th {
+  background: rgba(0, 0, 0, 0.2);
+  color: #888;
+  text-align: left;
+  padding: 10px 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.size-table td {
+  padding: 12px 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  color: #ccc;
+  font-weight: 500;
+}
+
+.size-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.size-table td:first-child {
+  font-weight: 800;
+  color: #fff;
 }
 
 /* Price */
