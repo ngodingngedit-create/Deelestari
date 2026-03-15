@@ -168,6 +168,12 @@ const totalPrice = computed(() => {
                       <td>75</td>
                       <td>61</td>
                     </tr>
+                    <tr>
+                      <td>XXL</td>
+                      <td>59</td>
+                      <td>77</td>
+                      <td>62</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
